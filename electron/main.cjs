@@ -22,12 +22,41 @@ function createWindow() {
   // Get the app path - works both in development and packaged app
 const appPath = app.getAppPath();
 console.log('App path:', appPath);
+console.log('Node env:', process.env.NODE_ENV);
 
 // Load the app - only use dev server when explicitly in development mode
-const isDev = process.env.NODE_ENV === 'development';
+// Also check if we're in the project directory (not packaged) to determine dev mode
+const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged;
+console.log('Is dev:', isDev);
+
 if (isDev) {
-    mainWindow.loadURL('http://localhost:5175');
-    mainWindow.webContents.openDevTools();
+    // Try multiple times with different ports in case 5175 is busy
+    const tryLoadDevServer = (port, attempts) => {
+        if (attempts <= 0) {
+            console.log('Could not connect to dev server, trying fallback to file');
+            // Fallback to file if dev server fails
+            const indexPath = path.join(__dirname, '../dist/index.html');
+            mainWindow.loadFile(indexPath).catch(e => console.log('File fallback failed:', e));
+            return;
+        }
+
+        mainWindow.loadURL(`http://localhost:${port}`)
+            .then(() => {
+                console.log(`Loaded dev server at port ${port}`);
+            })
+            .catch(err => {
+                console.log(`Failed to load port ${port}, trying next...`);
+                // Try different ports
+                const nextPort = port === 5173 ? 5174 : (port === 5174 ? 5175 : 5173);
+                tryLoadDevServer(nextPort, attempts - 1);
+            });
+    };
+
+    // Give dev server time to start
+    setTimeout(() => {
+        tryLoadDevServer(5173, 4);
+        mainWindow.webContents.openDevTools();
+    }, 2000);
 } else {
     // In production, load from the app's dist folder
     const indexPath = path.join(appPath, 'dist/index.html');
@@ -105,6 +134,16 @@ if (isDev) {
           accelerator: 'CmdOrCtrl+S',
           click: () => mainWindow.webContents.send('menu-save-file')
         },
+        {
+          label: '另存为...',
+          accelerator: 'CmdOrCtrl+Shift+S',
+          click: () => mainWindow.webContents.send('menu-save-as-file')
+        },
+        {
+          label: '打开文件夹...',
+          accelerator: 'CmdOrCtrl+Shift+O',
+          click: () => mainWindow.webContents.send('menu-open-folder')
+        },
         { type: 'separator' },
         isMac ? { role: 'close' } : { role: 'quit' }
       ]
@@ -154,7 +193,7 @@ if (isDev) {
   Menu.setApplicationMenu(menu);
 }
 
-// Handle save dialog
+// Handle save as dialog
 ipcMain.handle('save-file', async (event, { content, defaultName }) => {
   const result = await dialog.showSaveDialog(mainWindow, {
     defaultPath: defaultName,
@@ -165,6 +204,47 @@ ipcMain.handle('save-file', async (event, { content, defaultName }) => {
     return { success: true, path: result.filePath };
   }
   return { success: false };
+});
+
+// Handle save directly (overwrite)
+ipcMain.handle('save-direct-file', async (event, { content, filePath }) => {
+  try {
+    fs.writeFileSync(filePath, content, 'utf-8');
+    return { success: true };
+  } catch (error) {
+    console.error('Failed to save file:', error);
+    return { success: false };
+  }
+});
+
+// Handle open folder
+ipcMain.handle('open-folder', async () => {
+  const result = await dialog.showOpenDialog(mainWindow, {
+    properties: ['openDirectory']
+  });
+  if (!result.canceled && result.filePaths.length > 0) {
+    const folderPath = result.filePaths[0];
+    const files = fs.readdirSync(folderPath)
+      .filter(file => file.endsWith('.md') && !file.startsWith('._'))
+      .map(file => ({
+        name: file,
+        path: path.join(folderPath, file),
+        content: fs.readFileSync(path.join(folderPath, file), 'utf-8')
+      }));
+    return { success: true, folderPath, files };
+  }
+  return { success: false };
+});
+
+// Handle read file from path
+ipcMain.handle('read-file-from-path', async (event, filePath) => {
+  try {
+    const content = fs.readFileSync(filePath, 'utf-8');
+    return content;
+  } catch (error) {
+    console.error('Failed to read file:', error);
+    return null;
+  }
 });
 
 // Handle open dialog

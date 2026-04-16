@@ -13,7 +13,7 @@
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "electron:dev": "NODE_ENV=development electron .",
+    "electron:dev": "cross-env NODE_ENV=development electron .",
     "electron:build": "npm run build && electron-builder --win --publish never"
   },
   "dependencies": {
@@ -32,6 +32,7 @@
     "@types/react-syntax-highlighter": "^15.5.13",
     "@vitejs/plugin-react": "^6.0.1",
     "autoprefixer": "^10.5.0",
+    "cross-env": "^10.1.0",
     "electron": "^41.2.0",
     "electron-builder": "^26.8.1",
     "eslint": "^9.39.4",
@@ -58,7 +59,9 @@
       "target": [
         {
           "target": "nsis",
-          "arch": ["x64"]
+          "arch": [
+            "x64"
+          ]
         }
       ],
       "fileAssociations": [
@@ -73,7 +76,10 @@
       "target": [
         {
           "target": "dmg",
-          "arch": ["x64", "arm64"]
+          "arch": [
+            "x64",
+            "arm64"
+          ]
         }
       ],
       "identity": null
@@ -82,11 +88,15 @@
       "target": [
         {
           "target": "AppImage",
-          "arch": ["x64"]
+          "arch": [
+            "x64"
+          ]
         },
         {
           "target": "deb",
-          "arch": ["x64"]
+          "arch": [
+            "x64"
+          ]
         }
       ],
       "category": "Utility"
