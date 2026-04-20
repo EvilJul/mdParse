@@ -247,6 +247,28 @@ ipcMain.handle('read-file-from-path', async (event, filePath) => {
   }
 });
 
+// Handle rename file
+ipcMain.handle('rename-file', async (event, oldPath, newPath) => {
+  try {
+    fs.renameSync(oldPath, newPath);
+    return true;
+  } catch (error) {
+    console.error('Failed to rename file:', error);
+    return false;
+  }
+});
+
+// Handle delete file
+ipcMain.handle('delete-file', async (event, filePath) => {
+  try {
+    fs.unlinkSync(filePath);
+    return true;
+  } catch (error) {
+    console.error('Failed to delete file:', error);
+    return false;
+  }
+});
+
 // Handle open dialog
 ipcMain.handle('open-file', async () => {
   const result = await dialog.showOpenDialog(mainWindow, {

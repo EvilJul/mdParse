@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import ReactMarkdown from 'react-markdown';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { oneDark, oneLight } from 'react-syntax-highlighter/dist/esm/styles/prism';
@@ -15,6 +15,8 @@ declare global {
       openFile: () => Promise<{ content: string; name: string; path: string } | null>;
       openFolder: () => Promise<{ success: boolean; folderPath?: string; files?: Array<{ name: string; path: string; content: string }> } | null>;
       readFileFromPath: (filePath: string) => Promise<string | null>;
+      renameFile: (oldPath: string, newPath: string) => Promise<boolean>;
+      deleteFile: (filePath: string) => Promise<boolean>;
       onFileOpened: (callback: (data: { content: string; name: string; path: string }) => void) => void;
       onMenuNewFile: (callback: () => void) => void;
       onMenuSaveFile: (callback: () => void) => void;
@@ -114,6 +116,12 @@ function App() {
   // Folder view state
   const [folderPath, setFolderPath] = useState<string | null>(null);
   const [folderFiles, setFolderFiles] = useState<Array<{ name: string; path: string }>>([]);
+  const [isOpeningFolder, setIsOpeningFolder] = useState(false);
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; file: { name: string; path: string } } | null>(null);
+  const [renamingFile, setRenamingFile] = useState<{ name: string; path: string } | null>(null);
+  const [renameValue, setRenameValue] = useState('');
+  const [showRenameDialog, setShowRenameDialog] = useState(false);
+  const [renameTarget, setRenameTarget] = useState<{ name: string; path: string } | null>(null);
 
   // AI Panel state
   const [showAIPanel, setShowAIPanel] = useState(false);
@@ -345,9 +353,9 @@ function App() {
     // Otherwise close directly
     setFiles(prev => {
       const newFiles = prev.filter(f => f.id !== fileId);
-      // If no files left, switch to guide/about
+      // If no files left, reset to initial state
       if (newFiles.length === 0) {
-        setCurrentTab('guide');
+        setCurrentTab('guide'); // Set to guide so FileUploader shows
         setActiveFileId(null);
       } else if (fileId === activeFileId) {
         // If closing active file, switch to first remaining file
@@ -362,6 +370,49 @@ function App() {
     if (!activeFileId) return;
     handleCloseFileById(activeFileId);
   }, [activeFileId, handleCloseFileById]);
+
+  // Close all files from the folder
+  const closeFolderFiles = useCallback(() => {
+    const folderFilePaths = folderFiles.map(f => f.path);
+    setFiles(prev => {
+      const newFiles = prev.filter(f => !f.filePath || !folderFilePaths.includes(f.filePath));
+      // If no files left, show welcome screen
+      if (newFiles.length === 0) {
+        setActiveFileId(null);
+      } else if (activeFileId && !newFiles.find(f => f.id === activeFileId)) {
+        setActiveFileId(newFiles[0].id);
+      }
+      return newFiles;
+    });
+    setFolderPath(null);
+    setFolderFiles([]);
+  }, [folderFiles, activeFileId]);
+
+  // Handle rename submit
+  const handleRenameSubmit = useCallback(async () => {
+    if (!renameTarget || !renameValue || renameValue === renameTarget.name) {
+      setShowRenameDialog(false);
+      setRenameTarget(null);
+      return;
+    }
+
+    const newPath = renameTarget.path.replace(renameTarget.name, renameValue);
+    if (window.electronAPI) {
+      const success = await window.electronAPI.renameFile(renameTarget.path, newPath);
+      if (success) {
+        setFolderFiles(prev => prev.map(f =>
+          f.path === renameTarget.path ? { ...f, name: renameValue, path: newPath } : f
+        ));
+        setFiles(prev => prev.map(f =>
+          f.filePath === renameTarget.path ? { ...f, name: renameValue, filePath: newPath } : f
+        ));
+      } else {
+        alert('重命名失败');
+      }
+    }
+    setShowRenameDialog(false);
+    setRenameTarget(null);
+  }, [renameTarget, renameValue]);
 
   // Toggle theme
   const handleOpenFile = useCallback(async () => {
@@ -420,27 +471,36 @@ function App() {
 
   // Handle open folder
   const handleOpenFolder = useCallback(async () => {
-    if (window.electronAPI) {
-      const result = await window.electronAPI.openFolder();
-      if (result && result.success && result.files && result.folderPath) {
-        // Add all files from the folder
-        const newFiles = result.files.map((file: { name: string; path: string; content: string }) => ({
-          id: generateFileId(),
-          name: file.name,
-          content: file.content,
-          isDirty: false,
-          filePath: file.path
-        }));
-        setFiles(prev => [...prev, ...newFiles]);
-        setFolderPath(result.folderPath);
-        setFolderFiles(result.files.map((f: { name: string; path: string }) => ({ name: f.name, path: f.path })));
-        if (newFiles.length > 0) {
-          setActiveFileId(newFiles[0].id);
-          setCurrentTab('editor');
+    // Prevent multiple simultaneous folder open operations
+    if (isOpeningFolder) return;
+    setIsOpeningFolder(true);
+
+    try {
+      if (window.electronAPI) {
+        const result = await window.electronAPI.openFolder();
+        if (result && result.success && result.files && result.folderPath) {
+          // Add all files from the folder
+          const newFiles = result.files.map((file: { name: string; path: string; content: string }) => ({
+            id: generateFileId(),
+            name: file.name,
+            content: file.content,
+            isDirty: false,
+            filePath: file.path
+          }));
+          setFiles(prev => [...prev, ...newFiles]);
+          setFolderPath(result.folderPath);
+          setFolderFiles(result.files.map((f: { name: string; path: string }) => ({ name: f.name, path: f.path })));
+          if (newFiles.length > 0) {
+            setActiveFileId(newFiles[0].id);
+            setCurrentTab('editor');
+          }
         }
       }
+    } finally {
+      // Reset the flag after a short delay to prevent rapid clicks
+      setTimeout(() => setIsOpeningFolder(false), 300);
     }
-  }, []);
+  }, [isOpeningFolder]);
 
   // Handle AI submit
   const handleAISubmit = useCallback(async () => {
@@ -588,31 +648,41 @@ function App() {
 
   // Register Electron menu callbacks
   useEffect(() => {
-    if (window.electronAPI) {
-      window.electronAPI.onFileOpened((data) => {
-        const newFile: FileState = {
-          id: generateFileId(),
-          name: data.name,
-          content: data.content,
-          isDirty: false
-        };
-        setFiles(prev => [...prev, newFile]);
-        setActiveFileId(newFile.id);
-        setCurrentTab('editor');
-      });
-      window.electronAPI.onMenuNewFile(() => {
-        handleNewFile();
-      });
-      window.electronAPI.onMenuSaveFile(() => {
-        handleSave();
-      });
-      window.electronAPI.onMenuSaveAsFile(() => {
-        handleSaveAs();
-      });
-      window.electronAPI.onMenuOpenFolder(() => {
-        handleOpenFolder();
-      });
-    }
+    if (!window.electronAPI) return;
+
+    const cleanups: Array<() => void> = [];
+
+    cleanups.push(window.electronAPI.onFileOpened((data) => {
+      const newFile: FileState = {
+        id: generateFileId(),
+        name: data.name,
+        content: data.content,
+        isDirty: false
+      };
+      setFiles(prev => [...prev, newFile]);
+      setActiveFileId(newFile.id);
+      setCurrentTab('editor');
+    }));
+
+    cleanups.push(window.electronAPI.onMenuNewFile(() => {
+      handleNewFile();
+    }));
+
+    cleanups.push(window.electronAPI.onMenuSaveFile(() => {
+      handleSave();
+    }));
+
+    cleanups.push(window.electronAPI.onMenuSaveAsFile(() => {
+      handleSaveAs();
+    }));
+
+    cleanups.push(window.electronAPI.onMenuOpenFolder(() => {
+      handleOpenFolder();
+    }));
+
+    return () => {
+      cleanups.forEach(cleanup => cleanup());
+    };
   }, [handleNewFile, handleSave, handleSaveAs, handleOpenFolder]);
 
   // Keyboard shortcuts
@@ -715,44 +785,17 @@ function App() {
           {isMac && <span className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>macOS</span>}
         </div>
 
-        {/* Center: Main tabs - only show editor when files are open */}
+        {/* Center: Show current file name when open */}
         <div className="flex-1 flex items-center justify-center gap-2 mx-4">
-          {currentTab === 'editor' && files.length > 0 && (
+          {files.length > 0 && activeFile && (
             <div className={`text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-              {activeFile?.name || '编辑器'}
-            </div>
-          )}
-          {currentTab !== 'editor' && (
-            <div className={`flex items-center rounded-2xl p-0.5 flex-shrink-0 ${isDark ? 'bg-gray-700' : 'bg-gray-100'}`}>
-              {(['editor', 'guide', 'about'] as TabType[]).map(tab => (
-                <button
-                  key={tab}
-                  onClick={() => setCurrentTab(tab)}
-                  className={`px-3 py-1 text-sm rounded-md transition-all duration-200 whitespace-nowrap ${
-                    currentTab === tab
-                      ? isDark ? 'bg-gray-600 text-white' : 'bg-white text-gray-900 shadow-sm'
-                      : isDark ? 'text-gray-400 hover:text-white' : 'text-gray-500 hover:text-gray-700'
-                  }`}
-                >
-                  {tab === 'editor' ? '编辑器' : tab === 'guide' ? '语法指南' : '关于'}
-                </button>
-              ))}
+              {activeFile.name}
             </div>
           )}
         </div>
 
         {/* Right: Actions */}
         <div className="flex items-center gap-1 flex-shrink-0">
-          <button
-            onClick={handleNewFile}
-            className={`p-2 rounded-2xl transition-all duration-200 ${isDark ? 'text-gray-400 hover:text-white hover:bg-gray-700' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'}`}
-            title={`新建文件 (${MOD_KEY}+N)`}
-          >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-            </svg>
-          </button>
-
           <button
             onClick={toggleShortcuts}
             className={`p-2 rounded-2xl transition-all duration-200 ${isDark ? 'text-gray-400 hover:text-white hover:bg-gray-700' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'}`}
@@ -865,9 +908,33 @@ function App() {
                     {folderPath.split(/[\\/]/).pop()}
                   </span>
                   <button
-                    onClick={() => {
-                      setFolderPath(null);
-                      setFolderFiles([]);
+                    onClick={async () => {
+                      // Check for unsaved files from this folder
+                      const folderFilePaths = folderFiles.map(f => f.path);
+                      const unsavedFiles = files.filter(f => f.filePath && folderFilePaths.includes(f.filePath) && f.isDirty);
+
+                      if (unsavedFiles.length > 0) {
+                        const fileNames = unsavedFiles.map(f => f.name).join(', ');
+                        if (!confirm(`以下文件有未保存的更改，是否保存？\n${fileNames}`)) {
+                          // User chose not to save, close without saving
+                          closeFolderFiles();
+                          return;
+                        }
+                        // Save all unsaved files first
+                        for (const file of unsavedFiles) {
+                          if (file.filePath && window.electronAPI) {
+                            await window.electronAPI.saveDirectFile({
+                              content: file.content,
+                              filePath: file.filePath
+                            });
+                          }
+                        }
+                        // Mark as saved
+                        setFiles(prev => prev.map(f =>
+                          unsavedFiles.find(uf => uf.id === f.id) ? { ...f, isDirty: false } : f
+                        ));
+                      }
+                      closeFolderFiles();
                     }}
                     className={`p-1 rounded ${isDark ? 'hover:bg-gray-600 text-gray-500' : 'hover:bg-gray-200 text-gray-400'}`}
                     title="关闭文件夹"
@@ -883,44 +950,89 @@ function App() {
               {folderFiles.map((file, idx) => {
                 const existingFile = files.find(f => f.name === file.name);
                 const isActive = activeFile?.name === file.name && existingFile?.id === activeFileId;
+                const isRenaming = renamingFile?.path === file.path;
                 return (
-                  <button
+                  <div
                     key={`folder-${idx}`}
-                    onClick={() => {
-                      if (existingFile) {
-                        setActiveFileId(existingFile.id);
-                        setCurrentTab('editor');
-                      } else {
-                        if (window.electronAPI) {
-                          window.electronAPI.readFileFromPath?.(file.path).then((content) => {
-                            if (content) {
-                              const newFile = {
-                                id: generateFileId(),
-                                name: file.name,
-                                content,
-                                isDirty: false,
-                                filePath: file.path
-                              };
-                              setFiles(prev => [...prev, newFile]);
-                              setActiveFileId(newFile.id);
-                              setCurrentTab('editor');
-                            }
-                          });
-                        }
-                      }
-                    }}
-                    className={`w-full flex items-center gap-2 px-3 py-2 text-sm text-left transition-all duration-200 ${
-                      isActive
-                        ? (isDark ? 'bg-emerald-600 text-white' : 'bg-emerald-500 text-white')
-                        : (isDark ? 'text-gray-400 hover:bg-gray-700' : 'text-gray-600 hover:bg-gray-100')
-                    }`}
+                    className="relative"
                   >
-                    <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                    </svg>
-                    <span className="truncate flex-1">{file.name}</span>
-                    {existingFile?.isDirty && <span className="w-1.5 h-1.5 bg-yellow-400 rounded-full flex-shrink-0" />}
-                  </button>
+                    {isRenaming ? (
+                      <input
+                        type="text"
+                        value={renameValue}
+                        onChange={(e) => setRenameValue(e.target.value)}
+                        onBlur={async () => {
+                          if (renameValue && renameValue !== file.name) {
+                            const newPath = file.path.replace(file.name, renameValue);
+                            if (window.electronAPI) {
+                              const success = await window.electronAPI.renameFile(file.path, newPath);
+                              if (success) {
+                                setFolderFiles(prev => prev.map(f =>
+                                  f.path === file.path ? { ...f, name: renameValue, path: newPath } : f
+                                ));
+                                setFiles(prev => prev.map(f =>
+                                  f.filePath === file.path ? { ...f, name: renameValue, filePath: newPath } : f
+                                ));
+                              }
+                            }
+                          }
+                          setRenamingFile(null);
+                          setRenameValue('');
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.currentTarget.blur();
+                          } else if (e.key === 'Escape') {
+                            setRenamingFile(null);
+                            setRenameValue('');
+                          }
+                        }}
+                        autoFocus
+                        className={`w-full px-3 py-2 text-sm border rounded ${isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-900'}`}
+                      />
+                    ) : (
+                      <button
+                        onClick={() => {
+                          if (existingFile) {
+                            setActiveFileId(existingFile.id);
+                            setCurrentTab('editor');
+                          } else {
+                            if (window.electronAPI) {
+                              window.electronAPI.readFileFromPath?.(file.path).then((content) => {
+                                if (content) {
+                                  const newFile = {
+                                    id: generateFileId(),
+                                    name: file.name,
+                                    content,
+                                    isDirty: false,
+                                    filePath: file.path
+                                  };
+                                  setFiles(prev => [...prev, newFile]);
+                                  setActiveFileId(newFile.id);
+                                  setCurrentTab('editor');
+                                }
+                              });
+                            }
+                          }
+                        }}
+                        onContextMenu={(e) => {
+                          e.preventDefault();
+                          setContextMenu({ x: e.clientX, y: e.clientY, file });
+                        }}
+                        className={`w-full flex items-center gap-2 px-3 py-2 text-sm text-left transition-all duration-200 ${
+                          isActive
+                            ? (isDark ? 'bg-emerald-600 text-white' : 'bg-emerald-500 text-white')
+                            : (isDark ? 'text-gray-400 hover:bg-gray-700' : 'text-gray-600 hover:bg-gray-100')
+                        }`}
+                      >
+                        <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
+                        <span className="truncate flex-1">{file.name}</span>
+                        {existingFile?.isDirty && <span className="w-1.5 h-1.5 bg-yellow-400 rounded-full flex-shrink-0" />}
+                      </button>
+                    )}
+                  </div>
                 );
               })}
 
@@ -989,8 +1101,15 @@ function App() {
 
         {/* Main content area */}
         <main className="flex-1 overflow-hidden p-2">
-          {currentTab === 'editor' && (
-          activeFile ? (
+          {files.length === 0 ? (
+            <div className="py-16">
+              <div className="text-center mb-10">
+                <h1 className={`text-3xl font-bold mb-3 ${isDark ? 'text-white' : 'text-gray-900'}`}>Markdown 阅读器</h1>
+                <p className="text-gray-500 text-lg">阅读、编辑、创建 Markdown 文档</p>
+              </div>
+              <FileUploader onFileLoaded={handleFileLoaded} theme={theme} />
+            </div>
+          ) : currentTab === 'editor' && activeFile ? (
             <div className={`h-full ${isDark ? 'bg-gray-900' : 'bg-white'}`}>
               <MarkdownEditor
                 content={activeFile.content}
@@ -1003,28 +1122,15 @@ function App() {
                 isMac={isMac}
               />
             </div>
-          ) : (
-            <div className="py-16">
-              <div className="text-center mb-10">
-                <h1 className={`text-3xl font-bold mb-3 ${isDark ? 'text-white' : 'text-gray-900'}`}>Markdown 阅读器</h1>
-                <p className="text-gray-500 text-lg">阅读、编辑、创建 Markdown 文档</p>
-              </div>
-              <FileUploader onFileLoaded={handleFileLoaded} theme={theme} />
+          ) : currentTab === 'guide' ? (
+            <div className={`h-full overflow-auto ${isDark ? 'bg-gray-900' : 'bg-white'}`}>
+              <MarkdownContent content={MARKDOWN_GUIDE} theme={theme} />
             </div>
-          )
-        )}
-
-        {currentTab === 'guide' && (
-          <div className={`h-full overflow-auto ${isDark ? 'bg-gray-900' : 'bg-white'}`}>
-            <MarkdownContent content={MARKDOWN_GUIDE} theme={theme} />
-          </div>
-        )}
-
-        {currentTab === 'about' && (
-          <div className={`h-full overflow-auto ${isDark ? 'bg-gray-900' : 'bg-white'}`}>
-            <MarkdownContent content={ABOUT_CONTENT} theme={theme} />
-          </div>
-        )}
+          ) : (
+            <div className={`h-full overflow-auto ${isDark ? 'bg-gray-900' : 'bg-white'}`}>
+              <MarkdownContent content={ABOUT_CONTENT} theme={theme} />
+            </div>
+          )}
         </main>
 
         {/* AI Panel - Right sidebar */}
@@ -1381,6 +1487,95 @@ function App() {
                   <div key={i} className="border-t my-2" />
                 )
               ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Right click menu for folder files */}
+      {contextMenu && (
+        <>
+          <div
+            className={`fixed z-50 py-1 rounded-lg shadow-xl border min-w-[140px] ${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}`}
+            style={{
+              left: `${Math.min(contextMenu.x, window.innerWidth - 160)}px`,
+              top: `${Math.min(contextMenu.y, window.innerHeight - 100)}px`
+            }}
+          >
+            <button
+              onClick={() => {
+                setRenameTarget(contextMenu.file);
+                setRenameValue(contextMenu.file.name);
+                setShowRenameDialog(true);
+                setContextMenu(null);
+              }}
+              className={`w-full px-4 py-2 text-sm text-left hover:bg-gray-100 dark:hover:bg-gray-700 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}
+            >
+              重命名
+            </button>
+            <button
+              onClick={() => {
+                console.log('Delete clicked, file:', contextMenu.file);
+                if (confirm(`确定要删除 "${contextMenu.file.name}" 吗？`)) {
+                  if (window.electronAPI) {
+                    window.electronAPI.deleteFile(contextMenu.file.path).then((success) => {
+                      console.log('Delete success:', success);
+                      if (success) {
+                        setFolderFiles(prev => prev.filter(f => f.path !== contextMenu.file.path));
+                        const fileToClose = files.find(f => f.filePath === contextMenu.file.path);
+                        if (fileToClose) {
+                          setFiles(prev => prev.filter(f => f.filePath !== contextMenu.file.path));
+                          if (activeFileId === fileToClose.id) {
+                            setActiveFileId(null);
+                          }
+                        }
+                      } else {
+                        alert('删除失败');
+                      }
+                    }).catch(err => console.error('Delete error:', err));
+                  }
+                }
+                setContextMenu(null);
+              }}
+              className={`w-full px-4 py-2 text-sm text-left hover:bg-gray-100 dark:hover:bg-gray-700 text-red-500`}
+            >
+              删除
+            </button>
+          </div>
+          <div className="fixed inset-0 z-40" onClick={() => setContextMenu(null)} />
+        </>
+      )}
+
+      {/* Rename Dialog */}
+      {showRenameDialog && renameTarget && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setShowRenameDialog(false)}>
+          <div className={`rounded-xl p-6 w-80 ${isDark ? 'bg-gray-800' : 'bg-white'} shadow-xl`} onClick={e => e.stopPropagation()}>
+            <h3 className={`text-lg font-semibold mb-4 ${isDark ? 'text-white' : 'text-gray-900'}`}>重命名文件</h3>
+            <input
+              type="text"
+              value={renameValue}
+              onChange={(e) => setRenameValue(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && renameValue && renameValue !== renameTarget.name) {
+                  handleRenameSubmit();
+                }
+              }}
+              className={`w-full px-3 py-2 border rounded-lg mb-4 ${isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-900'}`}
+              autoFocus
+            />
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => setShowRenameDialog(false)}
+                className={`px-4 py-2 rounded-lg ${isDark ? 'text-gray-300 hover:bg-gray-700' : 'text-gray-700 hover:bg-gray-100'}`}
+              >
+                取消
+              </button>
+              <button
+                onClick={handleRenameSubmit}
+                className={`px-4 py-2 rounded-lg bg-emerald-500 text-white hover:bg-emerald-600`}
+              >
+                确定
+              </button>
             </div>
           </div>
         </div>
