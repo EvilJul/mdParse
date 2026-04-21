@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useRef } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { oneDark, oneLight } from 'react-syntax-highlighter/dist/esm/styles/prism';
@@ -17,11 +17,15 @@ declare global {
       readFileFromPath: (filePath: string) => Promise<string | null>;
       renameFile: (oldPath: string, newPath: string) => Promise<boolean>;
       deleteFile: (filePath: string) => Promise<boolean>;
-      onFileOpened: (callback: (data: { content: string; name: string; path: string }) => void) => void;
-      onMenuNewFile: (callback: () => void) => void;
-      onMenuSaveFile: (callback: () => void) => void;
-      onMenuSaveAsFile: (callback: () => void) => void;
-      onMenuOpenFolder: (callback: () => void) => void;
+      onFileOpened: (callback: (data: { content: string; name: string; path: string }) => void) => () => void;
+      onMenuNewFile: (callback: () => void) => () => void;
+      onMenuSaveFile: (callback: () => void) => () => void;
+      onMenuSaveAsFile: (callback: () => void) => () => void;
+      onMenuOpenFolder: (callback: () => void) => () => void;
+      onMenuOpenAISettings: (callback: () => void) => () => void;
+      onMenuOpenSettings: (callback: () => void) => () => void;
+      onMenuOpenGuide: (callback: () => void) => () => void;
+      onMenuOpenShortcuts: (callback: () => void) => () => void;
     };
   }
 }
@@ -125,9 +129,11 @@ function App() {
 
   // AI Panel state
   const [showAIPanel, setShowAIPanel] = useState(false);
-  const [showAISettings, setShowAISettings] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [showAIModal, setShowAIModal] = useState(false);
+  const [showSettingsModal, setShowSettingsModal] = useState(false);
+  const [showPreviewModal, setShowPreviewModal] = useState(false);
+  const [settingsActiveTab, setSettingsActiveTab] = useState<'general' | 'ai' | 'about'>('general');
   const [aiSettings, setAiSettings] = useState<AISettings>(() => {
     const saved = localStorage.getItem('mdparse-ai-settings');
     return saved ? JSON.parse(saved) : {
@@ -150,6 +156,13 @@ function App() {
   const [aiLoading, setAiLoading] = useState(false);
   const [aiTesting, setAiTesting] = useState(false);
   const [aiTestResult, setAiTestResult] = useState<{ success: boolean; message: string } | null>(null);
+  const [aiPreviewZoom, setAiPreviewZoom] = useState(100);
+
+  // Settings state
+  const [fontSize, setFontSize] = useState(() => {
+    const saved = localStorage.getItem('mdparse-font-size');
+    return saved ? parseInt(saved) : 16;
+  });
 
   // Get current file's AI messages
   const aiMessages = activeFileId ? (aiMessagesMap[activeFileId] || []) : [];
@@ -521,9 +534,9 @@ function App() {
       // Build the API URL
       const apiUrl = aiSettings.baseUrl.replace(/\/$/, '') + '/chat/completions';
 
-      // Create abort controller for timeout
+      // Create abort controller for timeout - 120 seconds
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 60000); // 60 second timeout
+      const timeoutId = setTimeout(() => controller.abort(), 120000);
 
       const response = await fetch(apiUrl, {
         method: 'POST',
@@ -536,14 +549,15 @@ function App() {
           messages: [
             {
               role: 'system',
-              content: aiAdvancedSettings.systemPrompt
+              content: aiAdvancedSettings.systemPrompt || '你是一个Markdown排版优化助手。用户会给你一段Markdown内容，你需要优化其排版，使其更符合Markdown语法规范，结构更清晰。直接返回优化后的内容，不要添加任何解释。'
             },
             {
               role: 'user',
               content: `请优化以下Markdown文件的排版：\n\n${activeFile.content}\n\n用户需求：${userMessage}`
             }
           ],
-          temperature: aiAdvancedSettings.temperature
+          temperature: aiAdvancedSettings.temperature || 0.3,
+          max_tokens: 4000
         }),
         signal: controller.signal
       });
@@ -631,21 +645,6 @@ function App() {
     }));
   }, [activeFileId]);
 
-  // Handle provider change
-  const handleProviderChange = useCallback((provider: string) => {
-    const baseUrls: Record<string, string> = {
-      openai: 'https://api.openai.com/v1',
-      deepseek: 'https://api.deepseek.com/v1',
-      custom: ''
-    };
-    setAiSettings((prev: AISettings): AISettings => ({
-      ...prev,
-      provider: provider as AISettings['provider'],
-      baseUrl: baseUrls[provider] || prev.baseUrl,
-      model: provider === 'deepseek' ? 'deepseek-chat' : (provider === 'openai' ? 'gpt-3.5-turbo' : prev.model)
-    }));
-  }, []);
-
   // Register Electron menu callbacks
   useEffect(() => {
     if (!window.electronAPI) return;
@@ -679,6 +678,23 @@ function App() {
     cleanups.push(window.electronAPI.onMenuOpenFolder(() => {
       handleOpenFolder();
     }));
+
+    cleanups.push(window.electronAPI.onMenuOpenSettings(() => {
+      setShowSettingsModal(true);
+      setSettingsActiveTab('general');
+    }));
+
+    if (window.electronAPI.onMenuOpenGuide) {
+      cleanups.push(window.electronAPI.onMenuOpenGuide(() => {
+        setShowGuideModal(true);
+      }));
+    }
+
+    if (window.electronAPI.onMenuOpenShortcuts) {
+      cleanups.push(window.electronAPI.onMenuOpenShortcuts(() => {
+        setShowShortcuts(true);
+      }));
+    }
 
     return () => {
       cleanups.forEach(cleanup => cleanup());
@@ -774,111 +790,37 @@ function App() {
 
   return (
     <div className={`h-screen flex flex-col ${isDark ? 'bg-gray-900' : 'bg-gray-50'}`}>
-      {/* Header - Fixed layout */}
-      <header className={`flex-shrink-0 border-b flex items-center justify-between px-6 h-14 ${isDark ? 'bg-gray-800/95 border-gray-700/50 backdrop-blur-sm' : 'bg-white/95 border-gray-200/50 backdrop-blur-sm'}`} style={{ borderRadius: 0 }}>
-        {/* Left: Logo + App Name */}
-        <div className="flex items-center gap-3 flex-shrink-0">
-          <div className="w-8 h-8 bg-gradient-to-br from-emerald-400 to-teal-600 rounded-2xl flex items-center justify-center">
-            <span className="text-white font-bold text-sm">M</span>
-          </div>
-          <span className={`text-base font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>Markdown Reader</span>
-          {isMac && <span className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>macOS</span>}
-        </div>
-
-        {/* Center: Show current file name when open */}
-        <div className="flex-1 flex items-center justify-center gap-2 mx-4">
-          {files.length > 0 && activeFile && (
-            <div className={`text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-              {activeFile.name}
-            </div>
-          )}
-        </div>
-
-        {/* Right: Actions */}
-        <div className="flex items-center gap-1 flex-shrink-0">
-          <button
-            onClick={toggleShortcuts}
-            className={`p-2 rounded-2xl transition-all duration-200 ${isDark ? 'text-gray-400 hover:text-white hover:bg-gray-700' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'}`}
-            title={`快捷键 (${MOD_KEY}+?)`}
-          >
-            <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7m0 10a2 2 0 002 2h2a2 2 0 002-2V7a2 2 0 00-2-2h-2a2 2 0 00-2 2" />
-            </svg>
-          </button>
-
-          {/* AI Button - Robot Icon */}
-          <button
-            onClick={() => setShowAIModal(true)}
-            className={`p-2 rounded-2xl transition-all duration-200 ${isDark ? 'text-gray-400 hover:text-white hover:bg-gray-700' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'}`}
-            title="AI 优化"
-          >
-            <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" />
-            </svg>
-          </button>
-
-          <button
-            onClick={toggleTheme}
-            className={`p-2 rounded-2xl transition-all duration-200 ${isDark ? 'text-gray-400 hover:text-white hover:bg-gray-700' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'}`}
-            title={`切换主题 (${MOD_KEY}+Shift+T)`}
-          >
-            {isDark ? (
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
-              </svg>
-            ) : (
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
-              </svg>
-            )}
-          </button>
-
-          {/* Help Dropdown */}
-          <div className="relative">
-            <button
-              onClick={() => setShowHelpMenu(!showHelpMenu)}
-              className={`p-2 rounded-2xl transition-all duration-200 ${isDark ? 'text-gray-400 hover:text-white hover:bg-gray-700' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'}`}
-              title="帮助"
-            >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-            </button>
-            {showHelpMenu && (
-              <div className={`absolute right-0 top-full mt-2 py-2 w-48 rounded-2xl shadow-lg border z-50 ${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}`}>
-                <button
-                  onClick={() => { setShowGuideModal(true); setShowHelpMenu(false); }}
-                  className={`w-full px-4 py-2 text-left text-sm transition-all duration-200 ${isDark ? 'text-gray-300 hover:bg-gray-700' : 'text-gray-700 hover:bg-gray-100'}`}
-                >
-                  语法指南
-                </button>
-                <button
-                  onClick={() => { setShowAboutModal(true); setShowHelpMenu(false); }}
-                  className={`w-full px-4 py-2 text-left text-sm transition-all duration-200 ${isDark ? 'text-gray-300 hover:bg-gray-700' : 'text-gray-700 hover:bg-gray-100'}`}
-                >
-                  关于
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
-      </header>
+      {/* Floating AI Button */}
+      {!showAIPanel && (
+        <button
+          onClick={() => setShowAIPanel(true)}
+          className="fixed bottom-8 right-8 w-12 h-12 rounded-full bg-gradient-to-br from-emerald-400 via-teal-500 to-cyan-600 text-white shadow-2xl hover:shadow-emerald-500/30 hover:scale-110 transition-all duration-300 flex items-center justify-center z-40 ai-float-btn"
+          title="AI 助手"
+        >
+          <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+            <path d="M12 2a2 2 0 0 1 2 2c0 .74-.4 1.39-1 1.73V7h1a7 7 0 0 1 7 7h1a1 1 0 0 1 1 1v3a1 1 0 0 1-1 1h-1v1a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-1H2a1 1 0 0 1-1-1v-3a1 1 0 0 1 1-1h1a7 7 0 0 1 7-7h1V5.73c-.6-.34-1-.99-1-1.73a2 2 0 0 1 2-2z"/>
+            <circle cx="9" cy="10" r="1"/>
+            <circle cx="15" cy="10" r="1"/>
+            <path d="M8 14s1.5 2 4 2 4-2 4-2"/>
+          </svg>
+        </button>
+      )}
 
       {/* Main content with sidebar and AI panel */}
       <div className="flex-1 flex overflow-hidden">
         {/* File Sidebar - Left */}
         {showFileSidebar && (
           <div
-            className={`flex flex-col border-r ${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}`}
+            className={`flex flex-col border-r transition-all duration-300 ease-out ${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}`}
             style={{ width: sidebarWidth }}
           >
             {/* Sidebar header */}
-            <div className="flex items-center justify-between px-3 py-2 border-b border-gray-700">
-              <span className={`text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>文件</span>
+            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200/50">
+              <span className={`text-sm font-semibold ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>文件</span>
               <div className="flex items-center gap-1">
                 <button
                   onClick={handleNewFile}
-                  className={`p-1 rounded ${isDark ? 'hover:bg-gray-700 text-gray-400' : 'hover:bg-gray-100 text-gray-500'}`}
+                  className={`p-1.5 rounded-lg transition-all duration-200 ${isDark ? 'hover:bg-gray-700/50 text-gray-400 hover:text-white' : 'hover:bg-gray-100 text-gray-500 hover:text-gray-700'}`}
                   title="新建文件"
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -886,8 +828,10 @@ function App() {
                   </svg>
                 </button>
                 <button
-                  onClick={() => setShowFileSidebar(false)}
-                  className={`p-1 rounded ${isDark ? 'hover:bg-gray-700 text-gray-400' : 'hover:bg-gray-100 text-gray-500'}`}
+                  onClick={() => {
+                    setShowFileSidebar(false);
+                  }}
+                  className={`p-1.5 rounded-lg transition-all duration-200 ${isDark ? 'hover:bg-gray-700/50 text-gray-400 hover:text-white' : 'hover:bg-gray-100 text-gray-500 hover:text-gray-700'}`}
                   title="隐藏侧边栏"
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -898,13 +842,13 @@ function App() {
             </div>
 
             {/* Unified file list - folder files + opened files */}
-            <div className="flex-1 overflow-auto">
+            <div className="flex-1 overflow-auto p-2">
               {folderPath && (
-                <div className={`flex items-center gap-2 px-3 py-2 ${isDark ? 'bg-gray-700/30' : 'bg-gray-50/50'}`}>
-                  <svg className="w-4 h-4 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <div className={`flex items-center gap-2 px-3 py-2.5 mb-1 rounded-xl ${isDark ? 'bg-gray-700/30' : 'bg-gray-100/50'}`}>
+                  <svg className="w-4 h-4 text-emerald-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
                   </svg>
-                  <span className={`text-sm font-medium truncate flex-1 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                  <span className={`text-sm font-medium truncate flex-1 ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
                     {folderPath.split(/[\\/]/).pop()}
                   </span>
                   <button
@@ -936,10 +880,10 @@ function App() {
                       }
                       closeFolderFiles();
                     }}
-                    className={`p-1 rounded ${isDark ? 'hover:bg-gray-600 text-gray-500' : 'hover:bg-gray-200 text-gray-400'}`}
+                    className={`p-1 rounded-lg transition-all duration-200 ${isDark ? 'hover:bg-gray-600/50 text-gray-500 hover:text-gray-300' : 'hover:bg-gray-200/50 text-gray-400 hover:text-gray-600'}`}
                     title="关闭文件夹"
                   >
-                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                     </svg>
                   </button>
@@ -954,7 +898,7 @@ function App() {
                 return (
                   <div
                     key={`folder-${idx}`}
-                    className="relative"
+                    className="relative group"
                   >
                     {isRenaming ? (
                       <input
@@ -988,7 +932,7 @@ function App() {
                           }
                         }}
                         autoFocus
-                        className={`w-full px-3 py-2 text-sm border rounded ${isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-900'}`}
+                        className={`w-full px-3 py-2 text-sm border rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/30 ${isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-900'}`}
                       />
                     ) : (
                       <button
@@ -1019,13 +963,13 @@ function App() {
                           e.preventDefault();
                           setContextMenu({ x: e.clientX, y: e.clientY, file });
                         }}
-                        className={`w-full flex items-center gap-2 px-3 py-2 text-sm text-left transition-all duration-200 ${
+                        className={`w-full flex items-center gap-2.5 px-3 py-2 text-sm text-left rounded-xl transition-all duration-200 ${
                           isActive
-                            ? (isDark ? 'bg-emerald-600 text-white' : 'bg-emerald-500 text-white')
-                            : (isDark ? 'text-gray-400 hover:bg-gray-700' : 'text-gray-600 hover:bg-gray-100')
+                            ? (isDark ? 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-md' : 'bg-gradient-to-r from-emerald-500 to-teal-500 text-white shadow-md')
+                            : (isDark ? 'text-gray-400 hover:bg-gray-700/50 hover:text-gray-200' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-800')
                         }`}
                       >
-                        <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <svg className="w-4 h-4 flex-shrink-0 opacity-70" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                         </svg>
                         <span className="truncate flex-1">{file.name}</span>
@@ -1044,13 +988,13 @@ function App() {
                     setActiveFileId(file.id);
                     setCurrentTab('editor');
                   }}
-                  className={`w-full flex items-center gap-2 px-3 py-2 text-sm text-left transition-all duration-200 ${
+                  className={`w-full flex items-center gap-2.5 px-3 py-2 text-sm text-left rounded-xl transition-all duration-200 ${
                     activeFileId === file.id
-                      ? (isDark ? 'bg-emerald-600 text-white' : 'bg-emerald-500 text-white')
-                      : (isDark ? 'text-gray-400 hover:bg-gray-700' : 'text-gray-600 hover:bg-gray-100')
+                      ? (isDark ? 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-md' : 'bg-gradient-to-r from-emerald-500 to-teal-500 text-white shadow-md')
+                      : (isDark ? 'text-gray-400 hover:bg-gray-700/50 hover:text-gray-200' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-800')
                   }`}
                 >
-                  <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-4 h-4 flex-shrink-0 opacity-70" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                   </svg>
                   <span className="truncate flex-1">{file.name}</span>
@@ -1060,7 +1004,7 @@ function App() {
                       e.stopPropagation();
                       handleCloseFileById(file.id);
                     }}
-                    className={`p-1 rounded opacity-60 hover:opacity-100 ${activeFileId === file.id ? 'hover:bg-white/20' : ''}`}
+                    className={`p-1 rounded-lg opacity-0 group-hover:opacity-100 transition-all duration-200 ${activeFileId === file.id ? 'hover:bg-white/20' : (isDark ? 'hover:bg-gray-600/50' : 'hover:bg-gray-200/50')}`}
                   >
                     <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -1081,7 +1025,7 @@ function App() {
         {/* Resize handle */}
         {showFileSidebar && (
           <div
-            className={`w-1 cursor-col-resize hover:bg-emerald-500 ${isDark ? 'bg-gray-700' : 'bg-gray-200'}`}
+            className={`w-0.5 cursor-col-resize hover:bg-emerald-500/50 transition-colors duration-200 ${isDark ? 'bg-gray-700/50' : 'bg-gray-200/50'}`}
             onMouseDown={() => setIsDragging(true)}
           />
         )}
@@ -1090,7 +1034,7 @@ function App() {
         {!showFileSidebar && (
           <button
             onClick={() => setShowFileSidebar(true)}
-            className={`absolute left-2 top-20 p-2 rounded-2xl shadow-lg z-10 ${isDark ? 'bg-gray-800 text-gray-400 hover:text-white' : 'bg-white text-gray-500 hover:text-gray-700'}`}
+            className={`absolute left-3 top-3 p-2.5 rounded-xl shadow-lg backdrop-blur-md z-10 transition-all duration-300 hover:scale-110 ${isDark ? 'bg-gray-800/80 text-gray-400 hover:text-white' : 'bg-white/80 text-gray-500 hover:text-gray-700'}`}
             title="显示文件侧边栏"
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1120,6 +1064,7 @@ function App() {
                 onRename={handleRenameFile}
                 theme={theme}
                 isMac={isMac}
+                fontSize={fontSize}
               />
             </div>
           ) : currentTab === 'guide' ? (
@@ -1135,201 +1080,78 @@ function App() {
 
         {/* AI Panel - Right sidebar */}
         {showAIPanel && (
-          <div className={`w-80 border-l flex flex-col ${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}`}>
-            <div className="p-3 border-b border-gray-700">
-              <div className="flex items-center justify-between mb-2">
-                <h3 className={`font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>AI 优化</h3>
-                <div className="flex items-center gap-1">
-                  <button
-                    onClick={() => setShowAISettings(!showAISettings)}
-                    className={`p-1 rounded ${isDark ? 'hover:bg-gray-700 text-gray-400' : 'hover:bg-gray-100 text-gray-500'}`}
-                    title="AI 设置"
-                  >
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                    </svg>
-                  </button>
-                  <button onClick={() => setShowAIPanel(false)} className={isDark ? 'text-gray-400 hover:text-white' : 'text-gray-500 hover:text-gray-700'}>
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                  </button>
-                </div>
-              </div>
-              {/* Current file indicator */}
-              {activeFile && (
-                <div className={`text-xs px-2 py-1 rounded ${isDark ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-600'}`}>
-                  当前文件: {activeFile.name}
-                </div>
-              )}
+          <div className={`w-80 border-l flex flex-col transition-all duration-300 ease-out ${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}`}>
+            <div className="flex items-center justify-end p-4 border-b border-gray-200/50">
+              <button
+                onClick={() => {
+                  setShowAIPanel(false);
+                }}
+                className={`p-2 rounded-full transition-all duration-200 ${isDark ? 'hover:bg-gray-700/50 text-gray-400' : 'hover:bg-gray-100 text-gray-500'}`}
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
             </div>
 
-            {/* AI Settings - Collapsible */}
-            {showAISettings && (
-              <div className="p-3 border-b border-gray-700 space-y-3">
-                {/* Provider */}
-                <div>
-                  <label className={`block text-sm mb-1 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>服务商</label>
-                  <div className="flex gap-2">
-                    {['openai', 'deepseek', 'custom'].map(p => (
-                      <button
-                        key={p}
-                        onClick={() => handleProviderChange(p)}
-                        className={`flex-1 py-1.5 px-2 text-sm rounded-2xl border transition-all duration-200 ${
-                          aiSettings.provider === p
-                            ? (isDark ? 'bg-emerald-600 border-emerald-500 text-white' : 'bg-emerald-500 border-emerald-400 text-white')
-                            : (isDark ? 'border-gray-600 text-gray-400 hover:bg-gray-700' : 'border-gray-200 text-gray-600 hover:bg-gray-100')
-                        }`}
-                      >
-                        {p === 'openai' ? 'OpenAI' : p === 'deepseek' ? 'DeepSeek' : '自定义'}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Base URL */}
-                <div>
-                  <label className={`block text-sm mb-1 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Base URL</label>
-                  <input
-                    type="text"
-                    value={aiSettings.baseUrl}
-                    onChange={e => setAiSettings({ ...aiSettings, baseUrl: e.target.value })}
-                    placeholder="https://api.openai.com/v1"
-                    className={`w-full px-3 py-2 text-sm rounded-2xl border ${
-                      isDark ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-500' : 'bg-white border-gray-200 text-gray-900 placeholder-gray-400'
-                    }`}
-                  />
-                </div>
-
-                {/* API Key */}
-                <div>
-                  <label className={`block text-sm mb-1 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>API Key</label>
-                  <input
-                    type="password"
-                    value={aiSettings.apiKey}
-                    onChange={e => setAiSettings({ ...aiSettings, apiKey: e.target.value })}
-                    placeholder="sk-..."
-                    className={`w-full px-3 py-2 text-sm rounded-2xl border ${
-                      isDark ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-500' : 'bg-white border-gray-200 text-gray-900 placeholder-gray-400'
-                    }`}
-                  />
-                </div>
-
-                {/* Model */}
-                <div>
-                  <label className={`block text-sm mb-1 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>模型名称</label>
-                  <input
-                    type="text"
-                    value={aiSettings.model}
-                    onChange={e => setAiSettings({ ...aiSettings, model: e.target.value })}
-                    placeholder="gpt-3.5-turbo"
-                    className={`w-full px-3 py-2 text-sm rounded-2xl border ${
-                      isDark ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-500' : 'bg-white border-gray-200 text-gray-900 placeholder-gray-400'
-                    }`}
-                  />
-                </div>
-
-                {/* Test Connection Button */}
-                <button
-                  onClick={async () => {
-                    if (!aiSettings.apiKey || !aiSettings.baseUrl || !aiSettings.model) {
-                      setAiTestResult({ success: false, message: '请填写 API Key、Base URL 和模型名称' });
-                      return;
-                    }
-                    setAiTesting(true);
-                    setAiTestResult(null);
-                    try {
-                      const apiUrl = aiSettings.baseUrl.replace(/\/$/, '') + '/models';
-                      const response = await fetch(apiUrl, {
-                        method: 'GET',
-                        headers: {
-                          'Authorization': `Bearer ${aiSettings.apiKey}`
-                        }
-                      });
-                      if (response.ok) {
-                        setAiTestResult({ success: true, message: '连接成功！API 配置正确。' });
-                      } else {
-                        const err = await response.json().catch(() => ({}));
-                        setAiTestResult({ success: false, message: `连接失败: ${response.status} ${err.error?.message || ''}` });
-                      }
-                    } catch (error) {
-                      setAiTestResult({ success: false, message: `连接失败: ${(error as Error).message}` });
-                    } finally {
-                      setAiTesting(false);
-                    }
-                  }}
-                  disabled={aiTesting}
-                  className={`w-full py-2 rounded-2xl text-sm font-medium transition-all duration-200 ${
-                    aiTesting
-                      ? (isDark ? 'bg-gray-700 text-gray-500' : 'bg-gray-100 text-gray-400')
-                      : (isDark ? 'bg-gray-600 text-white hover:bg-gray-500' : 'bg-gray-200 text-gray-700 hover:bg-gray-300')
-                  }`}
-                >
-                  {aiTesting ? '测试中...' : '测试连接'}
-                </button>
-
-                {/* Test Result */}
-                {aiTestResult && (
-                  <div className={`text-sm px-3 py-2 rounded-2xl ${aiTestResult.success ? (isDark ? 'bg-green-900/30 text-green-400' : 'bg-green-50 text-green-700') : (isDark ? 'bg-red-900/30 text-red-400' : 'bg-red-50 text-red-700')}`}>
-                    {aiTestResult.message}
-                  </div>
-                )}
-
-                {/* Temperature */}
-                <div>
-                  <div className="flex items-center justify-between mb-1">
-                    <label className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Temperature</label>
-                    <span className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>{aiAdvancedSettings.temperature}</span>
-                  </div>
-                  <input
-                    type="range"
-                    min="0"
-                    max="2"
-                    step="0.1"
-                    value={aiAdvancedSettings.temperature}
-                    onChange={e => setAiAdvancedSettings({ ...aiAdvancedSettings, temperature: parseFloat(e.target.value) })}
-                    className="w-full"
-                  />
-                </div>
-
-                {/* System Prompt */}
-                <div>
-                  <label className={`block text-sm mb-1 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>系统提示词</label>
-                  <textarea
-                    value={aiAdvancedSettings.systemPrompt}
-                    onChange={e => setAiAdvancedSettings({ ...aiAdvancedSettings, systemPrompt: e.target.value })}
-                    placeholder="你是一个Markdown排版优化助手..."
-                    className={`w-full px-3 py-2 text-sm rounded-2xl border resize-none ${
-                      isDark ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-500' : 'bg-white border-gray-200 text-gray-900 placeholder-gray-400'
-                    }`}
-                    rows={3}
-                  />
-                </div>
-              </div>
-            )}
-
             {/* Chat messages */}
-            <div className="flex-1 overflow-auto p-3 space-y-3">
+            <div className="flex-1 overflow-auto p-4 space-y-4">
+              {aiMessages.length === 0 && (
+                <div className={`text-center py-12 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                  <div className="w-16 h-16 mx-auto mb-4 bg-gradient-to-br from-emerald-400 to-teal-600 rounded-2xl flex items-center justify-center">
+                    <svg className="w-8 h-8 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                    </svg>
+                  </div>
+                  <p className="text-sm">发送消息开始对话</p>
+                </div>
+              )}
               {aiMessages.map((msg, i) => (
-                <div key={i} className={`text-sm ${msg.role === 'user' ? (isDark ? 'text-gray-300' : 'text-gray-700') : (isDark ? 'text-emerald-400' : 'text-emerald-600')}`}>
-                  <div className="font-medium mb-1">{msg.role === 'user' ? '你' : 'AI'}</div>
-                  <div className="whitespace-pre-wrap">{msg.content}</div>
+                <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                  <div className={`max-w-[85%] px-4 py-3 rounded-2xl text-sm ${
+                    msg.role === 'user'
+                      ? 'bg-gradient-to-r from-emerald-500 to-teal-600 text-white shadow-md'
+                      : (isDark ? 'bg-gray-700/80 text-gray-100' : 'bg-gray-100 text-gray-800')
+                  }`}>
+                    <div className={`font-medium text-xs mb-1 ${msg.role === 'user' ? 'text-white/70' : (isDark ? 'text-emerald-400' : 'text-emerald-600')}`}>
+                      {msg.role === 'user' ? '你' : 'AI'}
+                    </div>
+                    <div className="whitespace-pre-wrap">{msg.content}</div>
+                  </div>
                 </div>
               ))}
               {aiLoading && (
-                <div className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>AI 正在思考...</div>
+                <div className="flex justify-start">
+                  <div className={`px-4 py-3 rounded-2xl ${isDark ? 'bg-gray-700/80' : 'bg-gray-100'}`}>
+                    <div className="flex gap-1">
+                      <div className={`w-2 h-2 rounded-full ${isDark ? 'bg-gray-400' : 'bg-gray-400'} animate-bounce`} style={{ animationDelay: '0ms' }} />
+                      <div className={`w-2 h-2 rounded-full ${isDark ? 'bg-gray-400' : 'bg-gray-400'} animate-bounce`} style={{ animationDelay: '150ms' }} />
+                      <div className={`w-2 h-2 rounded-full ${isDark ? 'bg-gray-400' : 'bg-gray-400'} animate-bounce`} style={{ animationDelay: '300ms' }} />
+                    </div>
+                  </div>
+                </div>
               )}
               {pendingContent && (
                 <div className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-                  <div className="font-medium mb-2 text-emerald-500">待应用优化内容：</div>
-                  <div className={`p-3 rounded-2xl ${isDark ? 'bg-gray-700' : 'bg-gray-100'} whitespace-pre-wrap max-h-60 overflow-auto`}>
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="font-medium text-emerald-500">待应用优化内容：</div>
+                    <button
+                      onClick={() => setShowPreviewModal(true)}
+                      className={`px-3 py-1 rounded-lg text-xs ${isDark ? 'bg-gray-600 text-gray-300 hover:bg-gray-500' : 'bg-gray-200 text-gray-600 hover:bg-gray-300'}`}
+                    >
+                      全屏预览
+                    </button>
+                  </div>
+                  <div
+                    className={`p-4 rounded-2xl ${isDark ? 'bg-gray-700' : 'bg-gray-100'} whitespace-pre-wrap max-h-60 overflow-auto`}
+                    style={{ fontSize: `${aiPreviewZoom}%` }}
+                  >
                     {pendingContent}
                   </div>
                   <div className="flex gap-2 mt-2">
                     <button
                       onClick={handleApplyAiContent}
-                      className="flex-1 py-1.5 bg-emerald-500 text-white text-sm rounded-2xl hover:bg-emerald-600 hover:shadow-md"
+                      className="flex-1 py-1.5 bg-emerald-500 text-white text-sm rounded-2xl hover:bg-emerald-600 hover:shadow-lg active:scale-[0.98] transition-all duration-200"
                     >
                       应用到文件
                     </button>
@@ -1345,32 +1167,34 @@ function App() {
             </div>
 
             {/* Input */}
-            <div className="p-3 border-t border-gray-700">
-              <textarea
-                value={aiInput}
-                onChange={e => setAiInput(e.target.value)}
-                onKeyDown={e => {
-                  if (e.key === 'Enter' && !e.shiftKey) {
-                    e.preventDefault();
-                    handleAISubmit();
-                  }
-                }}
-                placeholder="输入优化指令，如：优化这段Markdown的排版..."
-                className={`w-full px-3 py-2 text-sm rounded-2xl border resize-none ${
-                  isDark ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-500' : 'bg-white border-gray-200 text-gray-900 placeholder-gray-400'
-                }`}
-                rows={3}
-              />
+            <div className="p-4 border-t border-gray-200/50">
+              <div className="flex gap-3">
+                <textarea
+                  value={aiInput}
+                  onChange={e => setAiInput(e.target.value)}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault();
+                      handleAISubmit();
+                    }
+                  }}
+                  placeholder="输入消息..."
+                  className={`flex-1 px-4 py-3 text-sm rounded-2xl border resize-none focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 transition-all duration-200 ${
+                    isDark ? 'bg-gray-700/50 border-gray-600 text-white placeholder-gray-500' : 'bg-gray-50 border-gray-200 text-gray-900 placeholder-gray-400'
+                  }`}
+                  rows={3}
+                />
+              </div>
               <button
                 onClick={handleAISubmit}
                 disabled={aiLoading || !aiInput.trim() || !aiSettings.apiKey || !activeFile}
-                className={`w-full mt-2 py-2 rounded-2xl text-sm font-medium transition-all duration-200 ${
+                className={`w-full mt-3 py-3 rounded-2xl text-sm font-medium transition-all duration-200 ${
                   aiLoading || !aiInput.trim() || !aiSettings.apiKey || !activeFile
-                    ? (isDark ? 'bg-gray-700 text-gray-500' : 'bg-gray-100 text-gray-400')
-                    : 'bg-emerald-500 text-white hover:bg-emerald-600 hover:shadow-md'
+                    ? (isDark ? 'bg-gray-700/50 text-gray-500' : 'bg-gray-100 text-gray-400')
+                    : 'bg-gradient-to-r from-emerald-500 to-teal-600 text-white hover:shadow-lg active:scale-[0.98]'
                 }`}
               >
-                {aiLoading ? '处理中...' : '优化当前文件'}
+                {aiLoading ? '处理中...' : '发送'}
               </button>
             </div>
           </div>
@@ -1416,9 +1240,9 @@ function App() {
 
       {/* Guide Modal */}
       {showGuideModal && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50" onClick={() => setShowGuideModal(false)}>
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-md flex items-center justify-center z-50" onClick={() => setShowGuideModal(false)}>
           <div
-            className={`w-[800px] max-h-[80vh] rounded-2xl shadow-2xl overflow-hidden ${isDark ? 'bg-gray-800' : 'bg-white'}`}
+            className={`w-[800px] max-h-[80vh] rounded-2xl shadow-2xl overflow-hidden dialog-animate ${isDark ? 'bg-gray-800' : 'bg-white'}`}
             onClick={e => e.stopPropagation()}
           >
             <div className={`flex items-center justify-between px-6 py-4 border-b ${isDark ? 'border-gray-700' : 'border-gray-200'}`}>
@@ -1459,6 +1283,354 @@ function App() {
             </div>
             <div className={`h-[60vh] overflow-auto p-6 ${isDark ? 'bg-gray-900' : 'bg-white'}`}>
               <MarkdownContent content={ABOUT_CONTENT} theme={theme} />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Settings Modal */}
+      {showSettingsModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setShowSettingsModal(false)}>
+          <div className={`w-[700px] max-h-[80vh] rounded-2xl shadow-2xl overflow-hidden dialog-animate ${isDark ? 'bg-gray-800' : 'bg-white'}`} onClick={e => e.stopPropagation()}>
+            {/* Header */}
+            <div className={`flex items-center justify-between px-6 py-4 border-b ${isDark ? 'border-gray-700' : 'border-gray-200'}`}>
+              <h2 className={`text-lg font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>设置</h2>
+              <button onClick={() => setShowSettingsModal(false)} className={`p-2 rounded-xl ${isDark ? 'hover:bg-gray-700 text-gray-400' : 'hover:bg-gray-100 text-gray-500'}`}>
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            {/* Content */}
+            <div className="flex h-[450px]">
+              {/* Left Sidebar */}
+              <div className={`w-40 border-r p-4 ${isDark ? 'border-gray-700' : 'border-gray-200'}`}>
+                <nav className="space-y-2">
+                  <button
+                    onClick={() => setSettingsActiveTab('general')}
+                    className={`w-full text-left px-3 py-2 rounded-lg text-sm font-medium transition-all ${
+                      settingsActiveTab === 'general'
+                        ? (isDark ? 'bg-emerald-600 text-white' : 'bg-emerald-500 text-white')
+                        : (isDark ? 'text-gray-300 hover:bg-gray-700' : 'text-gray-700 hover:bg-gray-100')
+                    }`}
+                  >
+                    通用
+                  </button>
+                  <button
+                    onClick={() => setSettingsActiveTab('ai')}
+                    className={`w-full text-left px-3 py-2 rounded-lg text-sm font-medium transition-all ${
+                      settingsActiveTab === 'ai'
+                        ? (isDark ? 'bg-emerald-600 text-white' : 'bg-emerald-500 text-white')
+                        : (isDark ? 'text-gray-300 hover:bg-gray-700' : 'text-gray-700 hover:bg-gray-100')
+                    }`}
+                  >
+                    AI 配置
+                  </button>
+                  <button
+                    onClick={() => setSettingsActiveTab('about')}
+                    className={`w-full text-left px-3 py-2 rounded-lg text-sm font-medium transition-all ${
+                      settingsActiveTab === 'about'
+                        ? (isDark ? 'bg-emerald-600 text-white' : 'bg-emerald-500 text-white')
+                        : (isDark ? 'text-gray-300 hover:bg-gray-700' : 'text-gray-700 hover:bg-gray-100')
+                    }`}
+                  >
+                    关于
+                  </button>
+                </nav>
+              </div>
+
+              {/* Right Content */}
+              <div className="flex-1 p-6 overflow-auto">
+                {/* General Tab */}
+                {settingsActiveTab === 'general' && (
+                  <div className="space-y-6">
+                    <div>
+                      <label className={`block text-sm font-medium mb-3 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>主题</label>
+                      <div className="flex gap-3">
+                        <button
+                          onClick={() => setTheme('light')}
+                          className={`flex-1 py-3 rounded-xl border-2 transition-all ${
+                            theme === 'light'
+                              ? 'border-emerald-500 bg-emerald-50'
+                              : (isDark ? 'border-gray-600 hover:border-gray-500' : 'border-gray-200 hover:border-gray-300')
+                          }`}
+                        >
+                          <div className="w-8 h-8 mx-auto mb-2 rounded-full bg-white border flex items-center justify-center">
+                            <svg className="w-5 h-5 text-yellow-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
+                            </svg>
+                          </div>
+                          <div className={`text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>浅色</div>
+                        </button>
+                        <button
+                          onClick={() => setTheme('dark')}
+                          className={`flex-1 py-3 rounded-xl border-2 transition-all ${
+                            theme === 'dark'
+                              ? 'border-emerald-500 bg-emerald-900/20'
+                              : (isDark ? 'border-gray-600 hover:border-gray-500' : 'border-gray-200 hover:border-gray-300')
+                          }`}
+                        >
+                          <div className="w-8 h-8 mx-auto mb-2 rounded-full bg-gray-800 border flex items-center justify-center">
+                            <svg className="w-5 h-5 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
+                            </svg>
+                          </div>
+                          <div className={`text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>深色</div>
+                        </button>
+                      </div>
+                    </div>
+
+                    <div>
+                      <div className="flex items-center justify-between mb-3">
+                        <label className={`text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>编辑器字体大小</label>
+                        <span className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{fontSize}px</span>
+                      </div>
+                      <input
+                        type="range"
+                        min="12"
+                        max="24"
+                        value={fontSize}
+                        onChange={(e) => {
+                          const size = parseInt(e.target.value);
+                          setFontSize(size);
+                          localStorage.setItem('mdparse-font-size', size.toString());
+                        }}
+                        className="w-full"
+                      />
+                      <div className={`flex justify-between text-xs mt-1 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                        <span>12px</span>
+                        <span>24px</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* AI Tab */}
+                {settingsActiveTab === 'ai' && (
+                  <div className="space-y-4">
+                    <div>
+                      <label className={`block text-sm font-medium mb-2 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>API Key</label>
+                      <input
+                        type="password"
+                        value={aiSettings.apiKey}
+                        onChange={(e) => setAiSettings({ ...aiSettings, apiKey: e.target.value })}
+                        className={`w-full px-3 py-2 border rounded-lg ${isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-900'}`}
+                        placeholder="输入 API Key"
+                      />
+                    </div>
+
+                    <div>
+                      <label className={`block text-sm font-medium mb-2 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>AI 提供商</label>
+                      <select
+                        value={aiSettings.provider}
+                        onChange={(e) => {
+                          const provider = e.target.value;
+                          const baseUrls: Record<string, string> = {
+                            openai: 'https://api.openai.com/v1',
+                            deepseek: 'https://api.deepseek.com/v1',
+                            custom: ''
+                          };
+                          setAiSettings({
+                            ...aiSettings,
+                            provider: provider as 'openai' | 'deepseek' | 'custom',
+                            baseUrl: baseUrls[provider] || ''
+                          });
+                        }}
+                        className={`w-full px-3 py-2 border rounded-lg ${isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-900'}`}
+                      >
+                        <option value="openai">OpenAI</option>
+                        <option value="deepseek">DeepSeek</option>
+                        <option value="custom">自定义</option>
+                      </select>
+                    </div>
+
+                    {aiSettings.provider === 'custom' && (
+                      <div>
+                        <label className={`block text-sm font-medium mb-2 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>API 地址</label>
+                        <input
+                          type="text"
+                          value={aiSettings.baseUrl}
+                          onChange={(e) => setAiSettings({ ...aiSettings, baseUrl: e.target.value })}
+                          className={`w-full px-3 py-2 border rounded-lg ${isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-900'}`}
+                          placeholder="https://api.example.com/v1"
+                        />
+                      </div>
+                    )}
+
+                    <div>
+                      <label className={`block text-sm font-medium mb-2 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>模型</label>
+                      <input
+                        type="text"
+                        value={aiSettings.model}
+                        onChange={(e) => setAiSettings({ ...aiSettings, model: e.target.value })}
+                        className={`w-full px-3 py-2 border rounded-lg ${isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-900'}`}
+                        placeholder="gpt-3.5-turbo"
+                      />
+                    </div>
+
+                    {/* Test Connection */}
+                    <button
+                      onClick={async () => {
+                        if (!aiSettings.apiKey || !aiSettings.baseUrl || !aiSettings.model) {
+                          setAiTestResult({ success: false, message: '请填写 API Key、Base URL 和模型' });
+                          return;
+                        }
+                        setAiTesting(true);
+                        setAiTestResult(null);
+                        try {
+                          const apiUrl = aiSettings.baseUrl.replace(/\/$/, '') + '/models';
+                          const response = await fetch(apiUrl, {
+                            method: 'GET',
+                            headers: { 'Authorization': `Bearer ${aiSettings.apiKey}` }
+                          });
+                          if (response.ok) {
+                            setAiTestResult({ success: true, message: '连接成功！' });
+                          } else {
+                            setAiTestResult({ success: false, message: `连接失败: ${response.status}` });
+                          }
+                        } catch (error) {
+                          setAiTestResult({ success: false, message: `连接失败: ${(error as Error).message}` });
+                        } finally {
+                          setAiTesting(false);
+                        }
+                      }}
+                      disabled={aiTesting}
+                      className={`w-full py-2 rounded-lg font-medium transition-all ${
+                        aiTesting
+                          ? (isDark ? 'bg-gray-700 text-gray-500' : 'bg-gray-100 text-gray-400')
+                          : (isDark ? 'bg-gray-600 text-white hover:bg-gray-500' : 'bg-gray-200 text-gray-700 hover:bg-gray-300')
+                      }`}
+                    >
+                      {aiTesting ? '测试中...' : '测试连接'}
+                    </button>
+
+                    {aiTestResult && (
+                      <div className={`text-sm px-3 py-2 rounded-lg ${aiTestResult.success ? (isDark ? 'bg-green-900/30 text-green-400' : 'bg-green-50 text-green-700') : (isDark ? 'bg-red-900/30 text-red-400' : 'bg-red-50 text-red-700')}`}>
+                        {aiTestResult.message}
+                      </div>
+                    )}
+
+                    <hr className={`${isDark ? 'border-gray-700' : 'border-gray-200'}`} />
+
+                    {/* System Prompt */}
+                    <div>
+                      <div className="flex items-center justify-between mb-2">
+                        <label className={`text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>System Prompt</label>
+                        <button
+                          onClick={() => setAiAdvancedSettings({
+                            ...aiAdvancedSettings,
+                            systemPrompt: '你是一个Markdown排版优化助手。用户会给你一段Markdown内容，你需要优化其排版，使其更符合Markdown语法规范，结构更清晰。直接返回优化后的内容，不要添加任何解释。'
+                          })}
+                          className={`text-xs ${isDark ? 'text-gray-500 hover:text-gray-300' : 'text-gray-400 hover:text-gray-600'}`}
+                        >
+                          恢复默认
+                        </button>
+                      </div>
+                      <textarea
+                        value={aiAdvancedSettings.systemPrompt}
+                        onChange={(e) => setAiAdvancedSettings({ ...aiAdvancedSettings, systemPrompt: e.target.value })}
+                        className={`w-full px-3 py-2 border rounded-lg resize-none ${isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-900'}`}
+                        rows={4}
+                        placeholder="输入自定义 System Prompt..."
+                      />
+                      <div className={`text-xs mt-1 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                        不填写时使用默认 Prompt
+                      </div>
+                    </div>
+
+                    {/* Save Button */}
+                    <div className="flex justify-end pt-2">
+                      <button
+                        onClick={() => {
+                          localStorage.setItem('mdparse-ai-settings', JSON.stringify(aiSettings));
+                          localStorage.setItem('mdparse-ai-advanced', JSON.stringify(aiAdvancedSettings));
+                          setAiTestResult({ success: true, message: '保存成功！' });
+                        }}
+                        className="px-6 py-2 bg-emerald-500 text-white rounded-lg hover:bg-emerald-600 font-medium"
+                      >
+                        保存设置
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* About Tab */}
+                {settingsActiveTab === 'about' && (
+                  <div className="text-center py-8">
+                    <div className="w-16 h-16 mx-auto mb-4 bg-gradient-to-br from-emerald-400 to-teal-600 rounded-2xl flex items-center justify-center">
+                      <span className="text-white font-bold text-2xl">M</span>
+                    </div>
+                    <h3 className={`text-xl font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>mdParse</h3>
+                    <p className={`text-sm mt-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Markdown Reader & Editor</p>
+                    <p className={`text-sm mt-4 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>版本 0.1.0</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Preview Modal */}
+      {showPreviewModal && pendingContent && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-md flex items-center justify-center z-50" onClick={() => setShowPreviewModal(false)}>
+          <div className={`w-[90vw] h-[90vh] rounded-2xl shadow-2xl overflow-hidden dialog-animate flex flex-col ${isDark ? 'bg-gray-800' : 'bg-white'}`} onClick={e => e.stopPropagation()}>
+            {/* Header */}
+            <div className={`flex items-center justify-between px-6 py-4 border-b ${isDark ? 'border-gray-700' : 'border-gray-200'}`}>
+              <div className="flex items-center gap-4">
+                <h2 className={`text-lg font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>预览优化内容</h2>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setAiPreviewZoom(z => Math.max(50, z - 10))}
+                    className={`p-1.5 rounded-lg ${isDark ? 'hover:bg-gray-700 text-gray-400' : 'hover:bg-gray-100 text-gray-500'}`}
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" />
+                    </svg>
+                  </button>
+                  <span className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'} w-12 text-center`}>{aiPreviewZoom}%</span>
+                  <button
+                    onClick={() => setAiPreviewZoom(z => Math.min(200, z + 10))}
+                    className={`p-1.5 rounded-lg ${isDark ? 'hover:bg-gray-700 text-gray-400' : 'hover:bg-gray-100 text-gray-500'}`}
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                    </svg>
+                  </button>
+                </div>
+              </div>
+              <button onClick={() => setShowPreviewModal(false)} className={`p-2 rounded-xl ${isDark ? 'hover:bg-gray-700 text-gray-400' : 'hover:bg-gray-100 text-gray-500'}`}>
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            {/* Content */}
+            <div className={`flex-1 overflow-auto p-6 ${isDark ? 'bg-gray-900' : 'bg-gray-50'}`}>
+              <div style={{ fontSize: `${aiPreviewZoom}%` }}>
+                <pre className={`whitespace-pre-wrap ${isDark ? 'text-gray-100' : 'text-gray-800'}`}>{pendingContent}</pre>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className={`flex items-center justify-end gap-3 px-6 py-4 border-t ${isDark ? 'border-gray-700' : 'border-gray-200'}`}>
+              <button
+                onClick={() => setShowPreviewModal(false)}
+                className={`px-4 py-2 rounded-xl ${isDark ? 'text-gray-300 hover:bg-gray-700' : 'text-gray-600 hover:bg-gray-100'}`}
+              >
+                关闭
+              </button>
+              <button
+                onClick={() => {
+                  handleApplyAiContent();
+                  setShowPreviewModal(false);
+                }}
+                className="px-6 py-2 bg-gradient-to-r from-emerald-500 to-teal-600 text-white rounded-xl hover:shadow-lg"
+              >
+                应用到文件
+              </button>
             </div>
           </div>
         </div>
@@ -1585,7 +1757,7 @@ function App() {
       {showAIModal && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50" onClick={() => setShowAIModal(false)}>
           <div
-            className={`w-[800px] max-h-[80vh] rounded-2xl shadow-2xl overflow-hidden ${isDark ? 'bg-gray-800' : 'bg-white'}`}
+            className={`w-[800px] max-h-[80vh] rounded-2xl shadow-2xl overflow-hidden dialog-animate ${isDark ? 'bg-gray-800' : 'bg-white'}`}
             onClick={e => e.stopPropagation()}
           >
             {/* Modal Header */}
@@ -1595,10 +1767,6 @@ function App() {
                   <svg className="w-6 h-6 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" />
                   </svg>
-                </div>
-                <div>
-                  <h2 className={`text-lg font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>AI Markdown 优化</h2>
-                  <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>智能优化你的 Markdown 文档</p>
                 </div>
               </div>
               <button
@@ -1612,162 +1780,8 @@ function App() {
             </div>
 
             {/* Modal Content - AI Panel */}
-            <div className="flex h-[500px]">
-              {/* Left: AI Settings */}
-              <div className={`w-64 border-r p-4 overflow-y-auto ${isDark ? 'border-gray-700' : 'border-gray-200'}`}>
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className={`font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>设置</h3>
-                  <button
-                    onClick={() => setShowAISettings(!showAISettings)}
-                    className={`p-1 rounded-lg ${isDark ? 'hover:bg-gray-700 text-gray-400' : 'hover:bg-gray-100 text-gray-500'}`}
-                  >
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                    </svg>
-                  </button>
-                </div>
-
-                {/* Current file indicator */}
-                {activeFile && (
-                  <div className={`text-xs px-3 py-2 rounded-xl mb-4 ${isDark ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-600'}`}>
-                    当前文件: {activeFile.name}
-                  </div>
-                )}
-
-                {showAISettings && (
-                  <div className="space-y-4">
-                    {/* Provider */}
-                    <div>
-                      <label className={`block text-sm mb-2 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>服务商</label>
-                      <div className="flex flex-wrap gap-2">
-                        {['openai', 'deepseek', 'custom'].map(p => (
-                          <button
-                            key={p}
-                            onClick={() => handleProviderChange(p)}
-                            className={`flex-1 py-1.5 px-3 text-sm rounded-xl border transition-all duration-200 ${
-                              aiSettings.provider === p
-                                ? (isDark ? 'bg-emerald-600 border-emerald-500 text-white' : 'bg-emerald-500 border-emerald-400 text-white')
-                                : (isDark ? 'border-gray-600 text-gray-400 hover:bg-gray-700' : 'border-gray-200 text-gray-600 hover:bg-gray-100')
-                            }`}
-                          >
-                            {p === 'openai' ? 'OpenAI' : p === 'deepseek' ? 'DeepSeek' : '自定义'}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-
-                    {/* Base URL */}
-                    <div>
-                      <label className={`block text-sm mb-2 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Base URL</label>
-                      <input
-                        type="text"
-                        value={aiSettings.baseUrl}
-                        onChange={e => setAiSettings({ ...aiSettings, baseUrl: e.target.value })}
-                        className={`w-full px-3 py-2 text-sm rounded-xl border ${isDark ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-500' : 'bg-white border-gray-200 text-gray-900 placeholder-gray-400'}`}
-                      />
-                    </div>
-
-                    {/* API Key */}
-                    <div>
-                      <label className={`block text-sm mb-2 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>API Key</label>
-                      <input
-                        type="password"
-                        value={aiSettings.apiKey}
-                        onChange={e => setAiSettings({ ...aiSettings, apiKey: e.target.value })}
-                        className={`w-full px-3 py-2 text-sm rounded-xl border ${isDark ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-500' : 'bg-white border-gray-200 text-gray-900 placeholder-gray-400'}`}
-                      />
-                    </div>
-
-                    {/* Model */}
-                    <div>
-                      <label className={`block text-sm mb-2 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>模型</label>
-                      <input
-                        type="text"
-                        value={aiSettings.model}
-                        onChange={e => setAiSettings({ ...aiSettings, model: e.target.value })}
-                        className={`w-full px-3 py-2 text-sm rounded-xl border ${isDark ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-500' : 'bg-white border-gray-200 text-gray-900 placeholder-gray-400'}`}
-                      />
-                    </div>
-
-                    {/* Test Connection */}
-                    <button
-                      onClick={async () => {
-                        if (!aiSettings.apiKey || !aiSettings.baseUrl || !aiSettings.model) {
-                          setAiTestResult({ success: false, message: '请填写 API Key、Base URL 和模型' });
-                          return;
-                        }
-                        setAiTesting(true);
-                        setAiTestResult(null);
-                        try {
-                          const apiUrl = aiSettings.baseUrl.replace(/\/$/, '') + '/models';
-                          const response = await fetch(apiUrl, {
-                            method: 'GET',
-                            headers: { 'Authorization': `Bearer ${aiSettings.apiKey}` }
-                          });
-                          if (response.ok) {
-                            setAiTestResult({ success: true, message: '连接成功！' });
-                          } else {
-                            setAiTestResult({ success: false, message: `连接失败: ${response.status}` });
-                          }
-                        } catch (error) {
-                          setAiTestResult({ success: false, message: `连接失败: ${(error as Error).message}` });
-                        } finally {
-                          setAiTesting(false);
-                        }
-                      }}
-                      disabled={aiTesting}
-                      className={`w-full py-2 rounded-xl text-sm font-medium transition-all duration-200 ${
-                        aiTesting ? (isDark ? 'bg-gray-700 text-gray-500' : 'bg-gray-100 text-gray-400') : (isDark ? 'bg-gray-600 text-white hover:bg-gray-500' : 'bg-gray-200 text-gray-700 hover:bg-gray-300')
-                      }`}
-                    >
-                      {aiTesting ? '测试中...' : '测试连接'}
-                    </button>
-
-                    {aiTestResult && (
-                      <div className={`text-sm px-3 py-2 rounded-xl ${aiTestResult.success ? (isDark ? 'bg-green-900/30 text-green-400' : 'bg-green-50 text-green-700') : (isDark ? 'bg-red-900/30 text-red-400' : 'bg-red-50 text-red-700')}`}>
-                        {aiTestResult.message}
-                      </div>
-                    )}
-
-                    {/* Temperature */}
-                    <div>
-                      <div className="flex items-center justify-between mb-2">
-                        <label className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Temperature</label>
-                        <span className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>{aiAdvancedSettings.temperature}</span>
-                      </div>
-                      <input
-                        type="range"
-                        min="0"
-                        max="2"
-                        step="0.1"
-                        value={aiAdvancedSettings.temperature}
-                        onChange={e => setAiAdvancedSettings({ ...aiAdvancedSettings, temperature: parseFloat(e.target.value) })}
-                        className="w-full"
-                      />
-                    </div>
-
-                    {/* System Prompt */}
-                    <div>
-                      <label className={`block text-sm mb-2 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>系统提示词</label>
-                      <textarea
-                        value={aiAdvancedSettings.systemPrompt}
-                        onChange={e => setAiAdvancedSettings({ ...aiAdvancedSettings, systemPrompt: e.target.value })}
-                        className={`w-full px-3 py-2 text-sm rounded-xl border resize-none ${isDark ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-500' : 'bg-white border-gray-200 text-gray-900 placeholder-gray-400'}`}
-                        rows={3}
-                      />
-                    </div>
-                  </div>
-                )}
-
-                {!showAISettings && (
-                  <div className={`text-sm ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
-                    点击设置图标查看更多配置选项
-                  </div>
-                )}
-              </div>
-
-              {/* Right: Chat Area */}
+            <div className="flex-1 flex flex-col h-[500px]">
+              {/* Chat Area */}
               <div className="flex-1 flex flex-col">
                 {/* Chat messages */}
                 <div className="flex-1 overflow-auto p-4 space-y-4">
@@ -1775,25 +1789,52 @@ function App() {
                     <div className={`text-center py-8 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
                       <div className="w-16 h-16 mx-auto mb-4 bg-gradient-to-br from-emerald-400 to-teal-600 rounded-2xl flex items-center justify-center">
                         <svg className="w-8 h-8 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" />
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
                         </svg>
                       </div>
-                      <p>输入优化指令，让 AI 优化你的 Markdown 文档</p>
+                      <p>发送消息开始对话</p>
                     </div>
                   )}
                   {aiMessages.map((msg, i) => (
-                    <div key={i} className={`text-sm ${msg.role === 'user' ? (isDark ? 'text-gray-300' : 'text-gray-700') : (isDark ? 'text-emerald-400' : 'text-emerald-600')}`}>
-                      <div className="font-medium mb-1">{msg.role === 'user' ? '你' : 'AI'}</div>
-                      <div className="whitespace-pre-wrap">{msg.content}</div>
+                    <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                      <div className={`max-w-[85%] px-4 py-3 rounded-2xl text-sm ${
+                        msg.role === 'user'
+                          ? 'bg-gradient-to-r from-emerald-500 to-teal-600 text-white shadow-md'
+                          : (isDark ? 'bg-gray-700/80 text-gray-100' : 'bg-gray-100 text-gray-800')
+                      }`}>
+                        <div className={`font-medium text-xs mb-1 ${msg.role === 'user' ? 'text-white/70' : (isDark ? 'text-emerald-400' : 'text-emerald-600')}`}>
+                          {msg.role === 'user' ? '你' : 'AI'}
+                        </div>
+                        <div className="whitespace-pre-wrap">{msg.content}</div>
+                      </div>
                     </div>
                   ))}
                   {aiLoading && (
-                    <div className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>AI 正在思考...</div>
+                    <div className="flex justify-start">
+                      <div className={`px-4 py-3 rounded-2xl ${isDark ? 'bg-gray-700/80' : 'bg-gray-100'}`}>
+                        <div className="flex gap-1">
+                          <div className={`w-2 h-2 rounded-full ${isDark ? 'bg-gray-400' : 'bg-gray-400'} animate-bounce`} style={{ animationDelay: '0ms' }} />
+                          <div className={`w-2 h-2 rounded-full ${isDark ? 'bg-gray-400' : 'bg-gray-400'} animate-bounce`} style={{ animationDelay: '150ms' }} />
+                          <div className={`w-2 h-2 rounded-full ${isDark ? 'bg-gray-400' : 'bg-gray-400'} animate-bounce`} style={{ animationDelay: '300ms' }} />
+                        </div>
+                      </div>
+                    </div>
                   )}
                   {pendingContent && (
                     <div className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-                      <div className="font-medium mb-2 text-emerald-500">待应用优化内容：</div>
-                      <div className={`p-4 rounded-xl ${isDark ? 'bg-gray-700' : 'bg-gray-100'} whitespace-pre-wrap max-h-40 overflow-auto`}>
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="font-medium text-emerald-500">待应用优化内容：</div>
+                        <button
+                          onClick={() => setShowPreviewModal(true)}
+                          className={`px-3 py-1 rounded-lg text-xs ${isDark ? 'bg-gray-600 text-gray-300 hover:bg-gray-500' : 'bg-gray-200 text-gray-600 hover:bg-gray-300'}`}
+                        >
+                          全屏预览
+                        </button>
+                      </div>
+                      <div
+                        className={`p-4 rounded-xl ${isDark ? 'bg-gray-700' : 'bg-gray-100'} whitespace-pre-wrap max-h-40 overflow-auto`}
+                        style={{ fontSize: `${aiPreviewZoom}%` }}
+                      >
                         {pendingContent}
                       </div>
                       <div className="flex gap-2 mt-3">
@@ -1825,8 +1866,8 @@ function App() {
                         handleAISubmit();
                       }
                     }}
-                    placeholder="输入优化指令，如：优化这段Markdown的排版..."
-                    className={`w-full px-4 py-3 text-sm rounded-xl border resize-none ${isDark ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-500' : 'bg-white border-gray-200 text-gray-900 placeholder-gray-400'}`}
+                    placeholder="输入消息..."
+                    className={`w-full px-4 py-3 text-sm rounded-xl border resize-none focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 transition-all duration-200 ${isDark ? 'bg-gray-700/50 border-gray-600 text-white placeholder-gray-500' : 'bg-gray-50 border-gray-200 text-gray-900 placeholder-gray-400'}`}
                     rows={3}
                   />
                   <button
@@ -1834,11 +1875,11 @@ function App() {
                     disabled={aiLoading || !aiInput.trim() || !aiSettings.apiKey || !activeFile}
                     className={`w-full mt-3 py-3 rounded-xl text-sm font-medium transition-all duration-200 ${
                       aiLoading || !aiInput.trim() || !aiSettings.apiKey || !activeFile
-                        ? (isDark ? 'bg-gray-700 text-gray-500' : 'bg-gray-100 text-gray-400')
-                        : 'bg-emerald-500 text-white hover:bg-emerald-600 hover:shadow-md'
+                        ? (isDark ? 'bg-gray-700/50 text-gray-500' : 'bg-gray-100 text-gray-400')
+                        : 'bg-gradient-to-r from-emerald-500 to-teal-600 text-white hover:shadow-lg active:scale-[0.98]'
                     }`}
                   >
-                    {aiLoading ? '处理中...' : '优化当前文件'}
+                    {aiLoading ? '处理中...' : '发送'}
                   </button>
                 </div>
               </div>

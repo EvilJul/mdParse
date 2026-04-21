@@ -12,9 +12,10 @@ interface MarkdownEditorProps {
   onRename?: (newName: string) => void;
   theme: 'light' | 'dark';
   isMac?: boolean;
+  fontSize?: number;
 }
 
-export function MarkdownEditor({ content, fileName, onContentChange, onClose, onSave, onRename, theme, isMac }: MarkdownEditorProps) {
+export function MarkdownEditor({ content, fileName, onContentChange, onClose, onSave, onRename, theme, isMac, fontSize = 16 }: MarkdownEditorProps) {
   const [viewMode, setViewMode] = useState<'edit' | 'preview' | 'split'>('split');
   const [isEditingName, setIsEditingName] = useState(false);
   const [editName, setEditName] = useState(fileName);
@@ -168,9 +169,10 @@ export function MarkdownEditor({ content, fileName, onContentChange, onClose, on
               value={content}
               onChange={handleContentChange}
               onKeyDown={handleKeyDown}
-              className={`flex-1 w-full p-4 font-mono text-sm border rounded-xl resize-none focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent ${
+              className={`flex-1 w-full p-4 font-mono border rounded-xl resize-none focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 transition-all duration-200 ${
                 isDark ? 'bg-gray-800 text-gray-100 border-gray-700 placeholder-gray-500' : 'bg-gray-50 text-gray-800 border-gray-200 placeholder-gray-400'
               }`}
+              style={{ fontSize: `${fontSize}px` }}
               placeholder="开始编写 Markdown..."
               spellCheck={false}
             />

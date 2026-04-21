@@ -101,9 +101,9 @@ if (isDev) {
     ...(isMac ? [{
       label: app.name,
       submenu: [
-        { role: 'about' },
+        { role: 'about', label: '关于' },
         { type: 'separator' },
-        { role: 'quit' }
+        { role: 'quit', label: '退出' }
       ]
     }] : []),
     {
@@ -119,7 +119,7 @@ if (isDev) {
           accelerator: 'CmdOrCtrl+O',
           click: async () => {
             const result = await dialog.showOpenDialog(mainWindow, {
-              filters: [{ name: 'Markdown', extensions: ['md'] }],
+              filters: [{ name: 'Markdown 文件', extensions: ['md'] }],
               properties: ['openFile']
             });
             if (!result.canceled && result.filePaths.length > 0) {
@@ -151,39 +151,57 @@ if (isDev) {
     {
       label: '编辑',
       submenu: [
-        { role: 'undo' },
-        { role: 'redo' },
+        { role: 'undo', label: '撤销' },
+        { role: 'redo', label: '重做' },
         { type: 'separator' },
-        { role: 'cut' },
-        { role: 'copy' },
-        { role: 'paste' },
-        { role: 'selectAll' }
+        { role: 'cut', label: '剪切' },
+        { role: 'copy', label: '复制' },
+        { role: 'paste', label: '粘贴' },
+        { role: 'selectAll', label: '全选' }
       ]
     },
     {
       label: '视图',
       submenu: [
-        { role: 'reload' },
-        { role: 'forceReload' },
-        { role: 'toggleDevTools' },
+        { role: 'reload', label: '重新加载' },
+        { role: 'forceReload', label: '强制重新加载' },
+        { role: 'toggleDevTools', label: '开发者工具' },
         { type: 'separator' },
-        { role: 'resetZoom' },
-        { role: 'zoomIn' },
-        { role: 'zoomOut' },
+        { role: 'resetZoom', label: '重置缩放' },
+        { role: 'zoomIn', label: '放大' },
+        { role: 'zoomOut', label: '缩小' },
         { type: 'separator' },
-        { role: 'togglefullscreen' }
+        { role: 'togglefullscreen', label: '全屏' }
+      ]
+    },
+    {
+      label: '设置',
+      accelerator: 'CmdOrCtrl+,',
+      click: () => mainWindow.webContents.send('menu-open-settings')
+    },
+    {
+      label: '帮助',
+      submenu: [
+        {
+          label: 'Markdown 语法',
+          click: () => mainWindow.webContents.send('menu-open-guide')
+        },
+        {
+          label: '快捷键',
+          click: () => mainWindow.webContents.send('menu-open-shortcuts')
+        }
       ]
     },
     {
       label: '窗口',
       submenu: [
-        { role: 'minimize' },
-        { role: 'zoom' },
+        { role: 'minimize', label: '最小化' },
+        { role: 'zoom', label: '缩放' },
         ...(isMac ? [
           { type: 'separator' },
-          { role: 'front' }
+          { role: 'front', label: '前置全部窗口' }
         ] : [
-          { role: 'close' }
+          { role: 'close', label: '关闭' }
         ])
       ]
     }
@@ -272,7 +290,7 @@ ipcMain.handle('delete-file', async (event, filePath) => {
 // Handle open dialog
 ipcMain.handle('open-file', async () => {
   const result = await dialog.showOpenDialog(mainWindow, {
-    filters: [{ name: 'Markdown', extensions: ['md'] }],
+    filters: [{ name: 'Markdown 文件', extensions: ['md'] }],
     properties: ['openFile']
   });
   if (!result.canceled && result.filePaths.length > 0) {

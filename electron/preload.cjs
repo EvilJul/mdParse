@@ -35,5 +35,25 @@ contextBridge.exposeInMainWorld('electronAPI', {
     const handler = () => callback();
     ipcRenderer.on('menu-open-folder', handler);
     return () => ipcRenderer.removeListener('menu-open-folder', handler);
+  },
+  onMenuOpenAISettings: (callback) => {
+    const handler = () => callback();
+    ipcRenderer.on('menu-open-ai-settings', handler);
+    return () => ipcRenderer.removeListener('menu-open-ai-settings', handler);
+  },
+  onMenuOpenSettings: (callback) => {
+    const handler = () => callback();
+    ipcRenderer.on('menu-open-settings', handler);
+    return () => ipcRenderer.removeListener('menu-open-settings', handler);
+  },
+  onMenuOpenGuide: (callback) => {
+    const handler = () => callback();
+    ipcRenderer.on('menu-open-guide', handler);
+    return () => ipcRenderer.removeListener('menu-open-guide', handler);
+  },
+  onMenuOpenShortcuts: (callback) => {
+    const handler = () => callback();
+    ipcRenderer.on('menu-open-shortcuts', handler);
+    return () => ipcRenderer.removeListener('menu-open-shortcuts', handler);
   }
 });
