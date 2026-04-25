@@ -103,6 +103,12 @@ if (isDev) {
       submenu: [
         { role: 'about', label: '关于' },
         { type: 'separator' },
+        {
+          label: '设置...',
+          accelerator: 'CmdOrCtrl+,',
+          click: () => mainWindow.webContents.send('menu-open-settings')
+        },
+        { type: 'separator' },
         { role: 'quit', label: '退出' }
       ]
     }] : []),
@@ -173,11 +179,6 @@ if (isDev) {
         { type: 'separator' },
         { role: 'togglefullscreen', label: '全屏' }
       ]
-    },
-    {
-      label: '设置',
-      accelerator: 'CmdOrCtrl+,',
-      click: () => mainWindow.webContents.send('menu-open-settings')
     },
     {
       label: '帮助',

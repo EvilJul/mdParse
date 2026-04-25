@@ -33,10 +33,11 @@ export function MarkdownEditor({ content, fileName, onContentChange, onClose, on
       const end = textarea.selectionEnd;
       const newContent = content.substring(0, start) + '\t' + content.substring(end);
       onContentChange(newContent);
-      // Set cursor position after tab
-      setTimeout(() => {
+
+      // Set cursor position after tab - use queueMicrotask for more reliable timing
+      queueMicrotask(() => {
         textarea.selectionStart = textarea.selectionEnd = start + 1;
-      }, 0);
+      });
     }
   }, [content, onContentChange]);
 

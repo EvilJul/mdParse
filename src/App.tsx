@@ -150,7 +150,10 @@ function App() {
       systemPrompt: '你是一个Markdown排版优化助手。用户会给你一段Markdown内容，你需要优化其排版，使其更符合Markdown语法规范，结构更清晰。直接返回优化后的内容，不要添加任何解释。'
     };
   });
-  const [aiMessagesMap, setAiMessagesMap] = useState<Record<string, { role: 'user' | 'assistant', content: string }[]>>({});
+  const [aiMessagesMap, setAiMessagesMap] = useState<Record<string, { role: 'user' | 'assistant', content: string }[]>>(() => {
+    const saved = localStorage.getItem('mdparse-ai-messages');
+    return saved ? JSON.parse(saved) : {};
+  });
   const [pendingAiContent, setPendingAiContent] = useState<Record<string, string>>({});
   const [aiInput, setAiInput] = useState('');
   const [aiLoading, setAiLoading] = useState(false);
@@ -192,25 +195,44 @@ function App() {
     localStorage.setItem('mdparse-ai-advanced', JSON.stringify(aiAdvancedSettings));
   }, [aiAdvancedSettings]);
 
-  // Handle sidebar resize
+  // Save AI messages to localStorage when they change
   useEffect(() => {
+    localStorage.setItem('mdparse-ai-messages', JSON.stringify(aiMessagesMap));
+  }, [aiMessagesMap]);
+
+  // Handle sidebar resize - optimized with throttle
+  useEffect(() => {
+    if (!isDragging) return;
+
+    let rafId: number | null = null;
+
     const handleMouseMove = (e: MouseEvent) => {
-      if (isDragging) {
+      if (rafId !== null) return;
+
+      rafId = requestAnimationFrame(() => {
         const newWidth = Math.max(150, Math.min(400, e.clientX));
         setSidebarWidth(newWidth);
-      }
-    };
-    const handleMouseUp = () => {
-      setIsDragging(false);
+        rafId = null;
+      });
     };
 
-    if (isDragging) {
-      document.addEventListener('mousemove', handleMouseMove);
-      document.addEventListener('mouseup', handleMouseUp);
-    }
+    const handleMouseUp = () => {
+      setIsDragging(false);
+      if (rafId !== null) {
+        cancelAnimationFrame(rafId);
+        rafId = null;
+      }
+    };
+
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+
     return () => {
       document.removeEventListener('mousemove', handleMouseMove);
       document.removeEventListener('mouseup', handleMouseUp);
+      if (rafId !== null) {
+        cancelAnimationFrame(rafId);
+      }
     };
   }, [isDragging]);
 
@@ -288,71 +310,92 @@ function App() {
     ));
   }, [activeFileId]);
 
-  // Handle save (overwrite)
+  // Handle save (overwrite) - improved error handling
   const handleSave = useCallback(async () => {
     if (!activeFile || isSaving) return;
     setIsSaving(true);
 
-    const currentFile = activeFile;
+    try {
+      const currentFile = activeFile;
 
-    // If file has a path, try to save directly
-    if (currentFile.filePath && window.electronAPI) {
-      const result = await window.electronAPI.saveDirectFile({
-        content: currentFile.content,
-        filePath: currentFile.filePath
-      });
-      if (result.success) {
-        setFiles(prev => prev.map(f =>
-          f.id === activeFileId ? { ...f, isDirty: false } : f
-        ));
-        setIsSaving(false);
-        return;
+      // If file has a path, try to save directly
+      if (currentFile.filePath && window.electronAPI) {
+        const result = await window.electronAPI.saveDirectFile({
+          content: currentFile.content,
+          filePath: currentFile.filePath
+        });
+
+        if (result.success) {
+          setFiles(prev => prev.map(f =>
+            f.id === activeFileId ? { ...f, isDirty: false } : f
+          ));
+          return;
+        }
+        // If direct save fails, fall through to save as dialog
+        console.warn('Direct save failed, falling back to save as dialog');
       }
-    }
 
-    // Fallback to save as dialog
-    await handleSaveAs();
-    setIsSaving(false);
+      // Fallback to save as dialog
+      await handleSaveAs();
+    } catch (error) {
+      console.error('Save failed:', error);
+      // Show error to user (you could add a toast notification here)
+    } finally {
+      setIsSaving(false);
+    }
   }, [activeFile, activeFileId, isSaving]);
 
-  // Handle save as
+  // Handle save as - improved error handling
   const handleSaveAs = useCallback(async () => {
     if (!activeFile || isSaving) return;
     setIsSaving(true);
 
-    const currentFile = activeFile;
+    try {
+      const currentFile = activeFile;
 
-    if (window.electronAPI) {
-      const result = await window.electronAPI.saveFile({
-        content: currentFile.content,
-        defaultName: currentFile.name
-      });
-      if (result.success && result.path) {
-        // Extract filename from path
-        const fileName = result.path.split(/[\\/]/).pop() || currentFile.name;
-        // Update the file with the new path
-        setFiles(prev => prev.map(f =>
-          f.id === activeFileId ? { ...f, isDirty: false, filePath: result.path, name: fileName } : f
-        ));
-        setIsSaving(false);
-        return;
+      if (window.electronAPI) {
+        const result = await window.electronAPI.saveFile({
+          content: currentFile.content,
+          defaultName: currentFile.name
+        });
+
+        if (result.success && result.path) {
+          // Extract filename from path
+          const fileName = result.path.split(/[\\/]/).pop() || currentFile.name;
+          // Update the file with the new path
+          setFiles(prev => prev.map(f =>
+            f.id === activeFileId ? { ...f, isDirty: false, filePath: result.path, name: fileName } : f
+          ));
+          return;
+        }
+
+        // If Electron save failed or was cancelled, don't fall through to browser download
+        if (!result.success) {
+          console.log('Save cancelled by user');
+          return;
+        }
       }
-    }
 
-    // Fallback to browser download
-    const blob = new Blob([currentFile.content], { type: 'text/markdown' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = currentFile.name;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-    setFiles(prev => prev.map(f =>
-      f.id === activeFileId ? { ...f, isDirty: false } : f
-    ));
-    setIsSaving(false);
+      // Fallback to browser download (only if not in Electron)
+      if (!window.electronAPI) {
+        const blob = new Blob([currentFile.content], { type: 'text/markdown' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = currentFile.name;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        setFiles(prev => prev.map(f =>
+          f.id === activeFileId ? { ...f, isDirty: false } : f
+        ));
+      }
+    } catch (error) {
+      console.error('Save as failed:', error);
+    } finally {
+      setIsSaving(false);
+    }
   }, [activeFile, activeFileId, isSaving]);
 
   // Handle close file
@@ -515,7 +558,7 @@ function App() {
     }
   }, [isOpeningFolder]);
 
-  // Handle AI submit
+  // Handle AI submit - improved error handling and timeout
   const handleAISubmit = useCallback(async () => {
     if (!aiInput.trim() || !aiSettings.apiKey || !activeFile || !activeFileId) return;
 
@@ -566,11 +609,12 @@ function App() {
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error?.message || `API请求失败 (${response.status})`);
+        const errorMessage = errorData.error?.message || `API请求失败 (${response.status})`;
+        throw new Error(errorMessage);
       }
 
       const data = await response.json();
-      const optimizedContent = data.choices[0]?.message?.content || '';
+      const optimizedContent = data.choices?.[0]?.message?.content || '';
 
       if (optimizedContent) {
         // Store pending content for user confirmation, don't update file directly
@@ -589,17 +633,20 @@ function App() {
         }));
       }
     } catch (error: unknown) {
-      if (error instanceof Error && error.name === 'AbortError') {
-        setAiMessagesMap(prev => ({
-          ...prev,
-          [activeFileId]: [...(prev[activeFileId] || []), { role: 'assistant', content: '请求超时，请检查网络或尝试更短的文本。' }]
-        }));
-      } else {
-        setAiMessagesMap(prev => ({
-          ...prev,
-          [activeFileId]: [...(prev[activeFileId] || []), { role: 'assistant', content: `错误: ${(error as Error).message}` }]
-        }));
+      let errorMessage = '未知错误';
+
+      if (error instanceof Error) {
+        if (error.name === 'AbortError') {
+          errorMessage = '请求超时（120秒），请检查网络或尝试更短的文本。';
+        } else {
+          errorMessage = error.message;
+        }
       }
+
+      setAiMessagesMap(prev => ({
+        ...prev,
+        [activeFileId]: [...(prev[activeFileId] || []), { role: 'assistant', content: `错误: ${errorMessage}` }]
+      }));
     } finally {
       setAiLoading(false);
     }
@@ -680,6 +727,7 @@ function App() {
     }));
 
     cleanups.push(window.electronAPI.onMenuOpenSettings(() => {
+      console.log('Settings menu clicked - opening settings modal');
       setShowSettingsModal(true);
       setSettingsActiveTab('general');
     }));
@@ -859,25 +907,44 @@ function App() {
 
                       if (unsavedFiles.length > 0) {
                         const fileNames = unsavedFiles.map(f => f.name).join(', ');
-                        if (!confirm(`以下文件有未保存的更改，是否保存？\n${fileNames}`)) {
-                          // User chose not to save, close without saving
-                          closeFolderFiles();
-                          return;
-                        }
-                        // Save all unsaved files first
-                        for (const file of unsavedFiles) {
-                          if (file.filePath && window.electronAPI) {
-                            await window.electronAPI.saveDirectFile({
-                              content: file.content,
-                              filePath: file.filePath
-                            });
+                        const shouldSave = confirm(`以下文件有未保存的更改，是否保存？\n${fileNames}`);
+
+                        if (shouldSave) {
+                          // Save all unsaved files first
+                          const savePromises = unsavedFiles.map(async (file) => {
+                            if (file.filePath && window.electronAPI) {
+                              try {
+                                const result = await window.electronAPI.saveDirectFile({
+                                  content: file.content,
+                                  filePath: file.filePath
+                                });
+                                return { fileId: file.id, success: result.success };
+                              } catch (error) {
+                                console.error(`Failed to save ${file.name}:`, error);
+                                return { fileId: file.id, success: false };
+                              }
+                            }
+                            return { fileId: file.id, success: false };
+                          });
+
+                          const results = await Promise.all(savePromises);
+                          const savedFileIds = results.filter(r => r.success).map(r => r.fileId);
+
+                          // Mark successfully saved files as not dirty
+                          if (savedFileIds.length > 0) {
+                            setFiles(prev => prev.map(f =>
+                              savedFileIds.includes(f.id) ? { ...f, isDirty: false } : f
+                            ));
+                          }
+
+                          // Warn about failed saves
+                          const failedCount = results.length - savedFileIds.length;
+                          if (failedCount > 0) {
+                            alert(`${failedCount} 个文件保存失败`);
                           }
                         }
-                        // Mark as saved
-                        setFiles(prev => prev.map(f =>
-                          unsavedFiles.find(uf => uf.id === f.id) ? { ...f, isDirty: false } : f
-                        ));
                       }
+
                       closeFolderFiles();
                     }}
                     className={`p-1 rounded-lg transition-all duration-200 ${isDark ? 'hover:bg-gray-600/50 text-gray-500 hover:text-gray-300' : 'hover:bg-gray-200/50 text-gray-400 hover:text-gray-600'}`}
@@ -982,35 +1049,39 @@ function App() {
 
               {/* Show opened files (not from folder) */}
               {files.filter(f => !folderFiles.some(gf => gf.name === f.name)).map(file => (
-                <button
+                <div
                   key={file.id}
-                  onClick={() => {
-                    setActiveFileId(file.id);
-                    setCurrentTab('editor');
-                  }}
-                  className={`w-full flex items-center gap-2.5 px-3 py-2 text-sm text-left rounded-xl transition-all duration-200 ${
-                    activeFileId === file.id
-                      ? (isDark ? 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-md' : 'bg-gradient-to-r from-emerald-500 to-teal-500 text-white shadow-md')
-                      : (isDark ? 'text-gray-400 hover:bg-gray-700/50 hover:text-gray-200' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-800')
-                  }`}
+                  className="relative group"
                 >
-                  <svg className="w-4 h-4 flex-shrink-0 opacity-70" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                  </svg>
-                  <span className="truncate flex-1">{file.name}</span>
-                  {file.isDirty && <span className="w-1.5 h-1.5 bg-yellow-400 rounded-full flex-shrink-0" />}
+                  <button
+                    onClick={() => {
+                      setActiveFileId(file.id);
+                      setCurrentTab('editor');
+                    }}
+                    className={`w-full flex items-center gap-2.5 px-3 py-2 text-sm text-left rounded-xl transition-all duration-200 ${
+                      activeFileId === file.id
+                        ? (isDark ? 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-md' : 'bg-gradient-to-r from-emerald-500 to-teal-500 text-white shadow-md')
+                        : (isDark ? 'text-gray-300 hover:bg-gray-700/50 hover:text-gray-100' : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900')
+                    }`}
+                  >
+                    <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                    <span className="truncate flex-1">{file.name}</span>
+                    {file.isDirty && <span className="w-1.5 h-1.5 bg-yellow-400 rounded-full flex-shrink-0" />}
+                  </button>
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
                       handleCloseFileById(file.id);
                     }}
-                    className={`p-1 rounded-lg opacity-0 group-hover:opacity-100 transition-all duration-200 ${activeFileId === file.id ? 'hover:bg-white/20' : (isDark ? 'hover:bg-gray-600/50' : 'hover:bg-gray-200/50')}`}
+                    className={`absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded-lg opacity-0 group-hover:opacity-100 transition-all duration-200 ${activeFileId === file.id ? 'hover:bg-white/20' : (isDark ? 'hover:bg-gray-600/50' : 'hover:bg-gray-200/50')}`}
                   >
                     <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                     </svg>
                   </button>
-                </button>
+                </div>
               ))}
 
               {files.length === 0 && !folderPath && (
@@ -1291,6 +1362,7 @@ function App() {
       {/* Settings Modal */}
       {showSettingsModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setShowSettingsModal(false)}>
+          {console.log('Rendering settings modal, showSettingsModal:', showSettingsModal)}
           <div className={`w-[700px] max-h-[80vh] rounded-2xl shadow-2xl overflow-hidden dialog-animate ${isDark ? 'bg-gray-800' : 'bg-white'}`} onClick={e => e.stopPropagation()}>
             {/* Header */}
             <div className={`flex items-center justify-between px-6 py-4 border-b ${isDark ? 'border-gray-700' : 'border-gray-200'}`}>
