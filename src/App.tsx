@@ -1,16 +1,20 @@
 import { useState, useCallback, useEffect } from 'react';
-import ReactMarkdown from 'react-markdown';
-import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
-import { oneDark, oneLight } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import { FileUploader } from './components/FileUploader';
 import { MarkdownEditor } from './components/MarkdownEditor';
+import { MarkdownContent } from './components/MarkdownContent';
+import { FileTabs } from './components/FileTabs';
+import { SearchReplace } from './components/SearchReplace';
 import { SettingsModal } from './components/modals/SettingsModal';
 import { NewFileDialog } from './components/modals/NewFileDialog';
 import { ConfirmDialog } from './components/modals/ConfirmDialog';
 import { MARKDOWN_GUIDE, ABOUT_CONTENT } from './data/markdownGuide';
-import type { FileState, AISettings, ThemeType, TabType } from './types';
+import type { FileState, AISettings, TabType } from './types';
 import { generateFileId, isMac } from './utils/helpers';
 import { SHORTCUTS } from './constants/shortcuts';
+import { useTheme } from './hooks/useTheme';
+import { useSidebar } from './hooks/useSidebar';
+import { useModals } from './hooks/useModals';
+import { useAutoSave } from './hooks/useAutoSave';
 
 // Electron API type
 declare global {
@@ -37,6 +41,23 @@ declare global {
 }
 
 function App() {
+  // Custom hooks
+  const { theme, setTheme, fontSize, setFontSize, toggleTheme: handleToggleTheme, isDark } = useTheme();
+  const { showFileSidebar, setShowFileSidebar, sidebarWidth, startDragging } = useSidebar();
+  const {
+    showNewFileDialog, setShowNewFileDialog,
+    showShortcuts, setShowShortcuts,
+    showHelpMenu, setShowHelpMenu,
+    showGuideModal, setShowGuideModal,
+    showAboutModal, setShowAboutModal,
+    showSettingsModal, setShowSettingsModal,
+    showPreviewModal, setShowPreviewModal,
+    showAIPanel, setShowAIPanel,
+    showAIModal, setShowAIModal,
+    closeConfirmDialog, setCloseConfirmDialog,
+    contextMenu, setContextMenu
+  } = useModals();
+
   // Files state - array of open files
   const [files, setFiles] = useState<FileState[]>(() => {
     const saved = localStorage.getItem('mdparse-files');
@@ -49,46 +70,23 @@ function App() {
   // Current tab
   const [currentTab, setCurrentTab] = useState<TabType>('editor');
 
-  // Theme
-  const [theme, setTheme] = useState<ThemeType>(() => {
-    const saved = localStorage.getItem('mdparse-theme');
-    return (saved as ThemeType) || 'light';
-  });
+  // Search and Replace
+  const [showSearchReplace, setShowSearchReplace] = useState(false);
 
   // New file dialog
-  const [showNewFileDialog, setShowNewFileDialog] = useState(false);
   const [newFileName, setNewFileName] = useState('');
-
-  // Shortcuts dialog
-  const [showShortcuts, setShowShortcuts] = useState(false);
-  const [showHelpMenu, setShowHelpMenu] = useState(false);
-  const [showGuideModal, setShowGuideModal] = useState(false);
-  const [showAboutModal, setShowAboutModal] = useState(false);
-
-  // Close confirm dialog
-  const [closeConfirmDialog, setCloseConfirmDialog] = useState<{ show: boolean; fileId: string | null }>({ show: false, fileId: null });
-
-  // File sidebar state
-  const [showFileSidebar, setShowFileSidebar] = useState(true);
-  const [sidebarWidth, setSidebarWidth] = useState(220);
-  const [isDragging, setIsDragging] = useState(false);
 
   // Folder view state
   const [folderPath, setFolderPath] = useState<string | null>(null);
   const [folderFiles, setFolderFiles] = useState<Array<{ name: string; path: string }>>([]);
   const [isOpeningFolder, setIsOpeningFolder] = useState(false);
-  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; file: { name: string; path: string } } | null>(null);
   const [renamingFile, setRenamingFile] = useState<{ name: string; path: string } | null>(null);
   const [renameValue, setRenameValue] = useState('');
   const [showRenameDialog, setShowRenameDialog] = useState(false);
   const [renameTarget, setRenameTarget] = useState<{ name: string; path: string } | null>(null);
 
   // AI Panel state
-  const [showAIPanel, setShowAIPanel] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
-  const [showAIModal, setShowAIModal] = useState(false);
-  const [showSettingsModal, setShowSettingsModal] = useState(false);
-  const [showPreviewModal, setShowPreviewModal] = useState(false);
   const [aiSettings, setAiSettings] = useState<AISettings>(() => {
     const saved = localStorage.getItem('mdparse-ai-settings');
     return saved ? JSON.parse(saved) : {
@@ -114,18 +112,29 @@ function App() {
   const [aiLoading, setAiLoading] = useState(false);
   const [aiPreviewZoom, setAiPreviewZoom] = useState(100);
 
-  // Settings state
-  const [fontSize, setFontSize] = useState(() => {
-    const saved = localStorage.getItem('mdparse-font-size');
-    return saved ? parseInt(saved) : 16;
-  });
-
   // Get current file's AI messages
   const aiMessages = activeFileId ? (aiMessagesMap[activeFileId] || []) : [];
   const pendingContent = activeFileId ? (pendingAiContent[activeFileId] || '') : '';
 
   // Get active file
   const activeFile = files.find(f => f.id === activeFileId) || null;
+
+  // Auto-save
+  const { lastSaved, isSaving: isAutoSaving } = useAutoSave({
+    enabled: !!activeFile && activeFile.isDirty && !!activeFile.filePath,
+    interval: 30000,
+    onSave: async () => {
+      if (activeFile && activeFile.filePath && window.electronAPI) {
+        await window.electronAPI.saveDirectFile({
+          content: activeFile.content,
+          filePath: activeFile.filePath
+        });
+        setFiles(prev => prev.map(f =>
+          f.id === activeFile.id ? { ...f, isDirty: false } : f
+        ));
+      }
+    }
+  });
 
   // Save files to localStorage when they change
   useEffect(() => {
@@ -152,42 +161,6 @@ function App() {
   useEffect(() => {
     localStorage.setItem('mdparse-ai-messages', JSON.stringify(aiMessagesMap));
   }, [aiMessagesMap]);
-
-  // Handle sidebar resize - optimized with throttle
-  useEffect(() => {
-    if (!isDragging) return;
-
-    let rafId: number | null = null;
-
-    const handleMouseMove = (e: MouseEvent) => {
-      if (rafId !== null) return;
-
-      rafId = requestAnimationFrame(() => {
-        const newWidth = Math.max(150, Math.min(400, e.clientX));
-        setSidebarWidth(newWidth);
-        rafId = null;
-      });
-    };
-
-    const handleMouseUp = () => {
-      setIsDragging(false);
-      if (rafId !== null) {
-        cancelAnimationFrame(rafId);
-        rafId = null;
-      }
-    };
-
-    document.addEventListener('mousemove', handleMouseMove);
-    document.addEventListener('mouseup', handleMouseUp);
-
-    return () => {
-      document.removeEventListener('mousemove', handleMouseMove);
-      document.removeEventListener('mouseup', handleMouseUp);
-      if (rafId !== null) {
-        cancelAnimationFrame(rafId);
-      }
-    };
-  }, [isDragging]);
 
   // Insert text at cursor (for formatting shortcuts)
   const insertTextAtCursor = useCallback((before: string, after: string = '') => {
@@ -468,11 +441,6 @@ function App() {
     input.click();
   }, []);
 
-  // Toggle theme
-  const toggleTheme = useCallback(() => {
-    setTheme(prev => prev === 'light' ? 'dark' : 'light');
-  }, []);
-
   // Toggle shortcuts
   const toggleShortcuts = useCallback(() => {
     setShowShortcuts(prev => !prev);
@@ -745,10 +713,18 @@ function App() {
             e.preventDefault();
             handleCloseFile();
             break;
+          case 'f':
+            e.preventDefault();
+            setShowSearchReplace(true);
+            break;
+          case 'h':
+            e.preventDefault();
+            setShowSearchReplace(true);
+            break;
           case 't':
             if (e.shiftKey) {
               e.preventDefault();
-              toggleTheme();
+              handleToggleTheme();
             }
             break;
           case '?':
@@ -784,12 +760,25 @@ function App() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [handleNewFile, handleSave, handleSaveAs, handleOpenFile, handleOpenFolder, handleCloseFile, toggleTheme, toggleShortcuts, insertTextAtCursor, showNewFileDialog, showShortcuts, showHelpMenu, cancelNewFile, setShowHelpMenu]);
-
-  const isDark = theme === 'dark';
+  }, [handleNewFile, handleSave, handleSaveAs, handleOpenFile, handleOpenFolder, handleCloseFile, handleToggleTheme, toggleShortcuts, insertTextAtCursor, showNewFileDialog, showShortcuts, showHelpMenu, cancelNewFile, setShowHelpMenu]);
 
   return (
     <div className={`h-screen flex flex-col ${isDark ? 'bg-gray-900' : 'bg-gray-50'}`}>
+      {/* Auto-save indicator */}
+      {isAutoSaving && (
+        <div className="fixed top-4 right-4 z-50 px-3 py-2 rounded-lg shadow-lg bg-emerald-500 text-white text-sm flex items-center gap-2">
+          <svg className="w-4 h-4 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+          </svg>
+          自动保存中...
+        </div>
+      )}
+      {lastSaved && !isAutoSaving && (
+        <div className="fixed top-4 right-4 z-50 px-3 py-2 rounded-lg shadow-lg bg-gray-700 text-white text-sm opacity-75">
+          已保存 {new Date(lastSaved).toLocaleTimeString()}
+        </div>
+      )}
+
       {/* Floating AI Button */}
       {!showAIPanel && (
         <button
@@ -1049,7 +1038,7 @@ function App() {
         {showFileSidebar && (
           <div
             className={`w-0.5 cursor-col-resize hover:bg-emerald-500/50 transition-colors duration-200 ${isDark ? 'bg-gray-700/50' : 'bg-gray-200/50'}`}
-            onMouseDown={() => setIsDragging(true)}
+            onMouseDown={startDragging}
           />
         )}
 
@@ -1067,7 +1056,20 @@ function App() {
         )}
 
         {/* Main content area */}
-        <main className="flex-1 overflow-hidden p-2">
+        <main className="flex-1 overflow-hidden flex flex-col">
+          {/* File Tabs */}
+          <FileTabs
+            files={files}
+            activeFileId={activeFileId}
+            isDark={isDark}
+            onTabClick={(fileId) => {
+              setActiveFileId(fileId);
+              setCurrentTab('editor');
+            }}
+            onTabClose={handleCloseFileById}
+          />
+
+          <div className="flex-1 overflow-hidden p-2">
           {files.length === 0 ? (
             <div className="py-16">
               <div className="text-center mb-10">
@@ -1077,7 +1079,28 @@ function App() {
               <FileUploader onFileLoaded={handleFileLoaded} theme={theme} />
             </div>
           ) : currentTab === 'editor' && activeFile ? (
-            <div className={`h-full ${isDark ? 'bg-gray-900' : 'bg-white'}`}>
+            <div className={`h-full relative ${isDark ? 'bg-gray-900' : 'bg-white'}`}>
+              {/* Search Replace Panel */}
+              <SearchReplace
+                isOpen={showSearchReplace}
+                isDark={isDark}
+                onClose={() => setShowSearchReplace(false)}
+                onSearch={(query, isNext) => {
+                  // Simple search implementation - can be enhanced with highlighting
+                  if (!query) return;
+                  console.log('Search:', query, isNext ? 'next' : 'prev');
+                }}
+                onReplace={(query, replacement) => {
+                  if (!query || !activeFile) return;
+                  const newContent = activeFile.content.replace(query, replacement);
+                  handleContentChange(newContent);
+                }}
+                onReplaceAll={(query, replacement) => {
+                  if (!query || !activeFile) return;
+                  const newContent = activeFile.content.replaceAll(query, replacement);
+                  handleContentChange(newContent);
+                }}
+              />
               <MarkdownEditor
                 content={activeFile.content}
                 fileName={activeFile.name}
@@ -1099,6 +1122,7 @@ function App() {
               <MarkdownContent content={ABOUT_CONTENT} theme={theme} />
             </div>
           )}
+          </div>
         </main>
 
         {/* AI Panel - Right sidebar */}
@@ -1648,66 +1672,4 @@ function App() {
     </div>
   );
 }
-function MarkdownContent({ content, theme }: { content: string; theme: ThemeType }) {
-  const [copied, setCopied] = useState<string | null>(null);
-  const syntaxStyle = theme === 'dark' ? oneDark : oneLight;
-
-  const handleCopy = async (code: string, id: string) => {
-    await navigator.clipboard.writeText(code);
-    setCopied(id);
-    setTimeout(() => setCopied(null), 2000);
-  };
-
-  const isDark = theme === 'dark';
-
-  const proseStyles = isDark
-    ? `prose-invert prose-headings:text-white prose-p:text-white prose-strong:text-white prose-em:text-white prose-a:text-teal-300 prose-code:text-emerald-300 prose-code:bg-gray-700 prose-pre:bg-gray-900 prose-blockquote:border-teal-400 prose-blockquote:bg-gray-800 prose-blockquote:text-white prose-th:bg-gray-700 prose-th:text-white prose-th:border-gray-600 prose-td:text-white prose-td:border-gray-600 prose-li:marker:text-teal-300 prose-hr:border-gray-500`
-    : `prose-headings:text-gray-900 prose-p:text-gray-600 prose-strong:text-gray-900 prose-em:text-gray-700 prose-a:text-teal-600 prose-code:text-teal-600 prose-code:bg-teal-50 prose-pre:bg-gray-900 prose-blockquote:border-teal-400 prose-blockquote:bg-teal-50 prose-blockquote:text-gray-700 prose-th:bg-gray-50 prose-th:text-gray-900 prose-th:border-gray-200 prose-td:text-gray-600 prose-td:border-gray-200 prose-li:marker:text-teal-400 prose-hr:border-gray-200`;
-
-  return (
-    <div className={`prose prose-lg max-w-none ${proseStyles}`}>
-      <ReactMarkdown
-        components={{
-          code({ node, className, children, ...props }) {
-            const match = /language-(\w+)/.exec(className || '');
-            const isInline = !match;
-
-            if (isInline) {
-              return <code className={className} {...props}>{children}</code>;
-            }
-
-            const codeString = String(children).replace(/\n$/, '');
-            const language = match[1] || 'text';
-            const codeId = `code-${language}-${codeString.slice(0, 20)}`;
-
-            return (
-              <div className="relative group">
-                <button
-                  onClick={() => handleCopy(codeString, codeId)}
-                  className={`absolute top-3 right-3 px-2 py-1 text-xs rounded transition-all duration-200 opacity-0 group-hover:opacity-100 z-10 ${
-                    isDark ? 'bg-gray-700 text-gray-300 hover:bg-gray-600' : 'bg-gray-200 text-gray-600 hover:bg-gray-300'
-                  }`}
-                >
-                  {copied === codeId ? '已复制' : '复制'}
-                </button>
-                <SyntaxHighlighter
-                  style={syntaxStyle}
-                  language={language}
-                  PreTag="div"
-                  customStyle={{ margin: '1.5em 0', borderRadius: '0.75rem', fontSize: '0.875rem' }}
-                  showLineNumbers
-                >
-                  {codeString}
-                </SyntaxHighlighter>
-              </div>
-            );
-          },
-        }}
-      >
-        {content}
-      </ReactMarkdown>
-    </div>
-  );
-}
-
 export default App;
