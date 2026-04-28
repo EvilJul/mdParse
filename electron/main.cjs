@@ -151,6 +151,12 @@ if (isDev) {
           click: () => mainWindow.webContents.send('menu-open-folder')
         },
         { type: 'separator' },
+        ...(!isMac ? [{
+          label: '设置',
+          accelerator: 'CmdOrCtrl+,',
+          click: () => mainWindow.webContents.send('menu-open-settings')
+        },
+        { type: 'separator' }] : []),
         isMac ? { role: 'close' } : { role: 'quit' }
       ]
     },
