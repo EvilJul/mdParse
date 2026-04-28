@@ -8,13 +8,14 @@ import { SettingsModal } from './components/modals/SettingsModal';
 import { NewFileDialog } from './components/modals/NewFileDialog';
 import { ConfirmDialog } from './components/modals/ConfirmDialog';
 import { MARKDOWN_GUIDE, ABOUT_CONTENT } from './data/markdownGuide';
-import type { FileState, AISettings, TabType } from './types';
+import type { FileState, TabType } from './types';
 import { generateFileId, isMac } from './utils/helpers';
 import { SHORTCUTS } from './constants/shortcuts';
 import { useTheme } from './hooks/useTheme';
 import { useSidebar } from './hooks/useSidebar';
 import { useModals } from './hooks/useModals';
 import { useAutoSave } from './hooks/useAutoSave';
+import { useAI } from './hooks/useAI';
 
 // Electron API type
 declare global {
@@ -87,37 +88,27 @@ function App() {
 
   // AI Panel state
   const [isSaving, setIsSaving] = useState(false);
-  const [aiSettings, setAiSettings] = useState<AISettings>(() => {
-    const saved = localStorage.getItem('mdparse-ai-settings');
-    return saved ? JSON.parse(saved) : {
-      apiKey: '',
-      baseUrl: 'https://api.openai.com/v1',
-      model: 'gpt-3.5-turbo',
-      provider: 'openai'
-    };
-  });
-  const [aiAdvancedSettings, setAiAdvancedSettings] = useState(() => {
-    const saved = localStorage.getItem('mdparse-ai-advanced');
-    return saved ? JSON.parse(saved) : {
-      temperature: 0.3,
-      systemPrompt: '你是一个Markdown排版优化助手。用户会给你一段Markdown内容，你需要优化其排版，使其更符合Markdown语法规范，结构更清晰。直接返回优化后的内容，不要添加任何解释。'
-    };
-  });
-  const [aiMessagesMap, setAiMessagesMap] = useState<Record<string, { role: 'user' | 'assistant', content: string }[]>>(() => {
-    const saved = localStorage.getItem('mdparse-ai-messages');
-    return saved ? JSON.parse(saved) : {};
-  });
-  const [pendingAiContent, setPendingAiContent] = useState<Record<string, string>>({});
-  const [aiInput, setAiInput] = useState('');
-  const [aiLoading, setAiLoading] = useState(false);
-  const [aiPreviewZoom, setAiPreviewZoom] = useState(100);
-
-  // Get current file's AI messages
-  const aiMessages = activeFileId ? (aiMessagesMap[activeFileId] || []) : [];
-  const pendingContent = activeFileId ? (pendingAiContent[activeFileId] || '') : '';
 
   // Get active file
   const activeFile = files.find(f => f.id === activeFileId) || null;
+
+  // Use AI hook
+  const {
+    aiSettings,
+    setAiSettings,
+    aiAdvancedSettings,
+    setAiAdvancedSettings,
+    aiMessages,
+    pendingContent,
+    aiInput,
+    setAiInput,
+    aiLoading,
+    aiPreviewZoom,
+    setAiPreviewZoom,
+    handleAISubmit,
+    handleApplyAiContent,
+    handleDismissAiContent
+  } = useAI(activeFile, activeFileId);
 
   // Auto-save
   const { lastSaved, isSaving: isAutoSaving } = useAutoSave({
@@ -146,21 +137,6 @@ function App() {
     localStorage.setItem('mdparse-theme', theme);
     document.documentElement.classList.toggle('dark', theme === 'dark');
   }, [theme]);
-
-  // Save AI settings
-  useEffect(() => {
-    localStorage.setItem('mdparse-ai-settings', JSON.stringify(aiSettings));
-  }, [aiSettings]);
-
-  // Save AI advanced settings
-  useEffect(() => {
-    localStorage.setItem('mdparse-ai-advanced', JSON.stringify(aiAdvancedSettings));
-  }, [aiAdvancedSettings]);
-
-  // Save AI messages to localStorage when they change
-  useEffect(() => {
-    localStorage.setItem('mdparse-ai-messages', JSON.stringify(aiMessagesMap));
-  }, [aiMessagesMap]);
 
   // Insert text at cursor (for formatting shortcuts)
   const insertTextAtCursor = useCallback((before: string, after: string = '') => {
@@ -478,140 +454,6 @@ function App() {
       setTimeout(() => setIsOpeningFolder(false), 300);
     }
   }, [isOpeningFolder]);
-
-  // Handle AI submit - improved error handling and timeout
-  const handleAISubmit = useCallback(async () => {
-    if (!aiInput.trim() || !aiSettings.apiKey || !activeFile || !activeFileId) return;
-
-    const userMessage = aiInput.trim();
-    setAiInput('');
-
-    // Add user message to current file's messages
-    setAiMessagesMap(prev => ({
-      ...prev,
-      [activeFileId]: [...(prev[activeFileId] || []), { role: 'user', content: userMessage }]
-    }));
-
-    setAiLoading(true);
-
-    try {
-      // Build the API URL
-      const apiUrl = aiSettings.baseUrl.replace(/\/$/, '') + '/chat/completions';
-
-      // Create abort controller for timeout - 120 seconds
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 120000);
-
-      const response = await fetch(apiUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${aiSettings.apiKey}`
-        },
-        body: JSON.stringify({
-          model: aiSettings.model,
-          messages: [
-            {
-              role: 'system',
-              content: aiAdvancedSettings.systemPrompt || '你是一个Markdown排版优化助手。用户会给你一段Markdown内容，你需要优化其排版，使其更符合Markdown语法规范，结构更清晰。直接返回优化后的内容，不要添加任何解释。'
-            },
-            {
-              role: 'user',
-              content: `请优化以下Markdown文件的排版：\n\n${activeFile.content}\n\n用户需求：${userMessage}`
-            }
-          ],
-          temperature: aiAdvancedSettings.temperature || 0.3,
-          max_tokens: 4000
-        }),
-        signal: controller.signal
-      });
-
-      clearTimeout(timeoutId);
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        const errorMessage = errorData.error?.message || `API请求失败 (${response.status})`;
-        throw new Error(errorMessage);
-      }
-
-      const data = await response.json();
-      const optimizedContent = data.choices?.[0]?.message?.content || '';
-
-      if (optimizedContent) {
-        // Store pending content for user confirmation, don't update file directly
-        setPendingAiContent(prev => ({
-          ...prev,
-          [activeFileId]: optimizedContent
-        }));
-        setAiMessagesMap(prev => ({
-          ...prev,
-          [activeFileId]: [...(prev[activeFileId] || []), { role: 'assistant', content: '已生成优化内容，请确认是否应用到文件。' }]
-        }));
-      } else {
-        setAiMessagesMap(prev => ({
-          ...prev,
-          [activeFileId]: [...(prev[activeFileId] || []), { role: 'assistant', content: '未返回有效内容，请重试。' }]
-        }));
-      }
-    } catch (error: unknown) {
-      let errorMessage = '未知错误';
-
-      if (error instanceof Error) {
-        if (error.name === 'AbortError') {
-          errorMessage = '请求超时（120秒），请检查网络或尝试更短的文本。';
-        } else {
-          errorMessage = error.message;
-        }
-      }
-
-      setAiMessagesMap(prev => ({
-        ...prev,
-        [activeFileId]: [...(prev[activeFileId] || []), { role: 'assistant', content: `错误: ${errorMessage}` }]
-      }));
-    } finally {
-      setAiLoading(false);
-    }
-  }, [aiInput, aiSettings, activeFile, activeFileId, aiAdvancedSettings]);
-
-  // Handle apply AI content
-  const handleApplyAiContent = useCallback(() => {
-    if (!activeFileId || !pendingAiContent[activeFileId]) return;
-
-    setFiles(prev => prev.map(f =>
-      f.id === activeFileId ? { ...f, content: pendingAiContent[activeFileId], isDirty: true } : f
-    ));
-
-    // Clear pending content
-    setPendingAiContent(prev => {
-      const newMap = { ...prev };
-      delete newMap[activeFileId];
-      return newMap;
-    });
-
-    // Add confirmation message
-    setAiMessagesMap(prev => ({
-      ...prev,
-      [activeFileId]: [...(prev[activeFileId] || []), { role: 'assistant', content: '已应用优化内容到文件。' }]
-    }));
-  }, [activeFileId, pendingAiContent]);
-
-  // Handle dismiss AI content
-  const handleDismissAiContent = useCallback(() => {
-    if (!activeFileId) return;
-
-    // Clear pending content
-    setPendingAiContent(prev => {
-      const newMap = { ...prev };
-      delete newMap[activeFileId];
-      return newMap;
-    });
-
-    // Add dismiss message
-    setAiMessagesMap(prev => ({
-      ...prev,
-      [activeFileId]: [...(prev[activeFileId] || []), { role: 'assistant', content: '已放弃本次优化内容。' }]
-    }));
-  }, [activeFileId]);
 
   // Register Electron menu callbacks
   useEffect(() => {
@@ -1197,7 +1039,11 @@ function App() {
                   </div>
                   <div className="flex gap-2 mt-2">
                     <button
-                      onClick={handleApplyAiContent}
+                      onClick={() => handleApplyAiContent((content) => {
+                        setFiles(prev => prev.map(f =>
+                          f.id === activeFileId ? { ...f, content, isDirty: true } : f
+                        ));
+                      })}
                       className="flex-1 py-1.5 bg-emerald-500 text-white text-sm rounded-2xl hover:bg-emerald-600 hover:shadow-lg active:scale-[0.98] transition-all duration-200"
                     >
                       应用到文件
