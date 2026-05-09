@@ -1,5 +1,5 @@
 import ReactMarkdown from 'react-markdown';
-// import remarkGfm from 'remark-gfm'; // TODO: Install remark-gfm package
+import remarkGfm from 'remark-gfm';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
 
@@ -63,7 +63,7 @@ export function MarkdownViewer({ content, fileName, onClear }: MarkdownViewerPro
         prose-hr:border-gray-200 prose-hr:my-8
       ">
         <ReactMarkdown
-          // remarkPlugins={[remarkGfm]} // TODO: Uncomment after installing remark-gfm
+          remarkPlugins={[remarkGfm]}
           components={{
             code({ node, className, children, ...props }) {
               const match = /language-(\w+)/.exec(className || '');
