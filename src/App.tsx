@@ -2,12 +2,14 @@ import { useState, useCallback, useEffect } from 'react';
 import { FileUploader } from './components/FileUploader';
 import { MarkdownEditor } from './components/MarkdownEditor';
 import { MarkdownContent } from './components/MarkdownContent';
-import { FileTabs } from './components/FileTabs';
+import { FileSearchBar } from './components/FileSearchBar';
 import { SearchReplace } from './components/SearchReplace';
 import { SettingsModal } from './components/modals/SettingsModal';
 import { NewFileDialog } from './components/modals/NewFileDialog';
 import { ConfirmDialog } from './components/modals/ConfirmDialog';
-import { MARKDOWN_GUIDE, ABOUT_CONTENT } from './data/markdownGuide';
+import { ToastContainer } from './components/Toast';
+import { AutoResizeTextarea } from './components/AutoResizeTextarea';
+import { MARKDOWN_GUIDE } from './data/markdownGuide';
 import type { FileState, AISettings, TabType } from './types';
 import { generateFileId, isMac } from './utils/helpers';
 import { SHORTCUTS } from './constants/shortcuts';
@@ -15,6 +17,7 @@ import { useTheme } from './hooks/useTheme';
 import { useSidebar } from './hooks/useSidebar';
 import { useModals } from './hooks/useModals';
 import { useAutoSave } from './hooks/useAutoSave';
+import { useToast } from './hooks/useToast';
 
 // Electron API type
 declare global {
@@ -44,12 +47,12 @@ function App() {
   // Custom hooks
   const { theme, setTheme, fontSize, setFontSize, toggleTheme: handleToggleTheme, isDark } = useTheme();
   const { showFileSidebar, setShowFileSidebar, sidebarWidth, startDragging } = useSidebar();
+  const toast = useToast();
   const {
     showNewFileDialog, setShowNewFileDialog,
     showShortcuts, setShowShortcuts,
     showHelpMenu, setShowHelpMenu,
     showGuideModal, setShowGuideModal,
-    showAboutModal, setShowAboutModal,
     showSettingsModal, setShowSettingsModal,
     showPreviewModal, setShowPreviewModal,
     showAIPanel, setShowAIPanel,
@@ -80,6 +83,7 @@ function App() {
   const [folderPath, setFolderPath] = useState<string | null>(null);
   const [folderFiles, setFolderFiles] = useState<Array<{ name: string; path: string }>>([]);
   const [isOpeningFolder, setIsOpeningFolder] = useState(false);
+  const [fileSearchQuery, setFileSearchQuery] = useState('');
   const [renamingFile, setRenamingFile] = useState<{ name: string; path: string } | null>(null);
   const [renameValue, setRenameValue] = useState('');
   const [showRenameDialog, setShowRenameDialog] = useState(false);
@@ -388,8 +392,9 @@ function App() {
         setFiles(prev => prev.map(f =>
           f.filePath === renameTarget.path ? { ...f, name: renameValue, filePath: newPath } : f
         ));
+        toast.success('重命名成功');
       } else {
-        alert('重命名失败');
+        toast.error('重命名失败');
       }
     }
     setShowRenameDialog(false);
@@ -680,7 +685,6 @@ function App() {
           if (showShortcuts) setShowShortcuts(false);
           if (showHelpMenu) setShowHelpMenu(false);
           if (showGuideModal) setShowGuideModal(false);
-          if (showAboutModal) setShowAboutModal(false);
         }
         return;
       }
@@ -830,6 +834,9 @@ function App() {
               </div>
             </div>
 
+            {/* File Search Bar */}
+            <FileSearchBar onSearch={setFileSearchQuery} isDark={isDark} />
+
             {/* Unified file list - folder files + opened files */}
             <div className="flex-1 overflow-auto p-2">
               {folderPath && (
@@ -848,7 +855,7 @@ function App() {
 
                       if (unsavedFiles.length > 0) {
                         const fileNames = unsavedFiles.map(f => f.name).join(', ');
-                        const shouldSave = confirm(`以下文件有未保存的更改，是否保存？\n${fileNames}`);
+                        const shouldSave = window.confirm(`以下文件有未保存的更改，是否保存？\n${fileNames}`);
 
                         if (shouldSave) {
                           // Save all unsaved files first
@@ -876,12 +883,13 @@ function App() {
                             setFiles(prev => prev.map(f =>
                               savedFileIds.includes(f.id) ? { ...f, isDirty: false } : f
                             ));
+                            toast.success(`成功保存 ${savedFileIds.length} 个文件`);
                           }
 
                           // Warn about failed saves
                           const failedCount = results.length - savedFileIds.length;
                           if (failedCount > 0) {
-                            alert(`${failedCount} 个文件保存失败`);
+                            toast.error(`${failedCount} 个文件保存失败`);
                           }
                         }
                       }
@@ -899,7 +907,9 @@ function App() {
               )}
 
               {/* Show folder files */}
-              {folderFiles.map((file, idx) => {
+              {folderFiles
+                .filter(file => file.name.toLowerCase().includes(fileSearchQuery.toLowerCase()))
+                .map((file, idx) => {
                 const existingFile = files.find(f => f.name === file.name);
                 const isActive = activeFile?.name === file.name && existingFile?.id === activeFileId;
                 const isRenaming = renamingFile?.path === file.path;
@@ -971,17 +981,19 @@ function App() {
                           e.preventDefault();
                           setContextMenu({ x: e.clientX, y: e.clientY, file });
                         }}
-                        className={`w-full flex items-center gap-2.5 px-3 py-2 text-sm text-left rounded-xl transition-all duration-200 ${
+                        className={`w-full flex items-center gap-2 px-3 py-2 text-sm text-left rounded-lg transition-colors duration-200 ${
                           isActive
-                            ? (isDark ? 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-md' : 'bg-gradient-to-r from-emerald-500 to-teal-500 text-white shadow-md')
-                            : (isDark ? 'text-gray-400 hover:bg-gray-700/50 hover:text-gray-200' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-800')
+                            ? (isDark ? 'bg-emerald-600 text-white' : 'bg-emerald-500 text-white')
+                            : (isDark ? 'text-gray-300 hover:bg-gray-700/50' : 'text-gray-700 hover:bg-gray-100')
                         }`}
                       >
-                        <svg className="w-4 h-4 flex-shrink-0 opacity-70" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <svg className={`w-4 h-4 flex-shrink-0 ${isActive ? 'opacity-100' : 'opacity-60'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                         </svg>
                         <span className="truncate flex-1">{file.name}</span>
-                        {existingFile?.isDirty && <span className="w-1.5 h-1.5 bg-yellow-400 rounded-full flex-shrink-0" />}
+                        {existingFile?.isDirty && (
+                          <span className="w-1.5 h-1.5 bg-yellow-400 rounded-full flex-shrink-0" />
+                        )}
                       </button>
                     )}
                   </div>
@@ -989,7 +1001,10 @@ function App() {
               })}
 
               {/* Show opened files (not from folder) */}
-              {files.filter(f => !folderFiles.some(gf => gf.name === f.name)).map(file => (
+              {files
+                .filter(f => !folderFiles.some(gf => gf.name === f.name))
+                .filter(f => f.name.toLowerCase().includes(fileSearchQuery.toLowerCase()))
+                .map(file => (
                 <div
                   key={file.id}
                   className="relative group"
@@ -999,24 +1014,26 @@ function App() {
                       setActiveFileId(file.id);
                       setCurrentTab('editor');
                     }}
-                    className={`w-full flex items-center gap-2.5 px-3 py-2 text-sm text-left rounded-xl transition-all duration-200 ${
+                    className={`w-full flex items-center gap-2 px-3 py-2 text-sm text-left rounded-lg transition-colors duration-200 ${
                       activeFileId === file.id
-                        ? (isDark ? 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-md' : 'bg-gradient-to-r from-emerald-500 to-teal-500 text-white shadow-md')
-                        : (isDark ? 'text-gray-300 hover:bg-gray-700/50 hover:text-gray-100' : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900')
+                        ? (isDark ? 'bg-emerald-600 text-white' : 'bg-emerald-500 text-white')
+                        : (isDark ? 'text-gray-300 hover:bg-gray-700/50' : 'text-gray-700 hover:bg-gray-100')
                     }`}
                   >
-                    <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg className={`w-4 h-4 flex-shrink-0 ${activeFileId === file.id ? 'opacity-100' : 'opacity-60'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                     </svg>
                     <span className="truncate flex-1">{file.name}</span>
-                    {file.isDirty && <span className="w-1.5 h-1.5 bg-yellow-400 rounded-full flex-shrink-0" />}
+                    {file.isDirty && (
+                      <span className="w-1.5 h-1.5 bg-yellow-400 rounded-full flex-shrink-0" />
+                    )}
                   </button>
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
                       handleCloseFileById(file.id);
                     }}
-                    className={`absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded-lg opacity-0 group-hover:opacity-100 transition-all duration-200 ${activeFileId === file.id ? 'hover:bg-white/20' : (isDark ? 'hover:bg-gray-600/50' : 'hover:bg-gray-200/50')}`}
+                    className={`absolute right-1.5 top-1/2 -translate-y-1/2 p-1 rounded-md opacity-0 group-hover:opacity-100 transition-opacity duration-200 ${activeFileId === file.id ? 'hover:bg-white/20' : (isDark ? 'hover:bg-gray-600/50' : 'hover:bg-gray-200/50')}`}
                   >
                     <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -1057,24 +1074,12 @@ function App() {
 
         {/* Main content area */}
         <main className="flex-1 overflow-hidden flex flex-col">
-          {/* File Tabs */}
-          <FileTabs
-            files={files}
-            activeFileId={activeFileId}
-            isDark={isDark}
-            onTabClick={(fileId) => {
-              setActiveFileId(fileId);
-              setCurrentTab('editor');
-            }}
-            onTabClose={handleCloseFileById}
-          />
-
           <div className="flex-1 overflow-hidden p-2">
           {files.length === 0 ? (
             <div className="py-16">
               <div className="text-center mb-10">
-                <h1 className={`text-3xl font-bold mb-3 ${isDark ? 'text-white' : 'text-gray-900'}`}>Markdown 阅读器</h1>
-                <p className="text-gray-500 text-lg">阅读、编辑、创建 Markdown 文档</p>
+                <h1 className={`text-3xl font-bold mb-3 ${isDark ? 'text-white' : 'text-gray-900'}`}>Markdown 编辑器</h1>
+                <p className="text-gray-500 text-lg">开始编辑你的 Markdown 文档</p>
               </div>
               <FileUploader onFileLoaded={handleFileLoaded} theme={theme} />
             </div>
@@ -1117,40 +1122,59 @@ function App() {
             <div className={`h-full overflow-auto ${isDark ? 'bg-gray-900' : 'bg-white'}`}>
               <MarkdownContent content={MARKDOWN_GUIDE} theme={theme} />
             </div>
-          ) : (
-            <div className={`h-full overflow-auto ${isDark ? 'bg-gray-900' : 'bg-white'}`}>
-              <MarkdownContent content={ABOUT_CONTENT} theme={theme} />
-            </div>
-          )}
+          ) : null}
           </div>
         </main>
 
         {/* AI Panel - Right sidebar */}
         {showAIPanel && (
-          <div className={`w-80 border-l flex flex-col transition-all duration-300 ease-out ${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}`}>
-            <div className="flex items-center justify-end p-4 border-b border-gray-200/50">
+          <div className={`w-96 border-l flex flex-col transition-all duration-300 ease-out shadow-2xl ${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}`}>
+            {/* Header */}
+            <div className={`flex items-center justify-between px-6 py-4 border-b ${isDark ? 'border-gray-700 bg-gray-800/50' : 'border-gray-200 bg-gray-50/50'}`}>
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-xl flex items-center justify-center shadow-lg">
+                  <svg className="w-5 h-5 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                  </svg>
+                </div>
+                <div>
+                  <h3 className={`text-sm font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>AI 助手</h3>
+                  <p className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>智能优化排版</p>
+                </div>
+              </div>
               <button
-                onClick={() => {
-                  setShowAIPanel(false);
-                }}
-                className={`p-2 rounded-full transition-all duration-200 ${isDark ? 'hover:bg-gray-700/50 text-gray-400' : 'hover:bg-gray-100 text-gray-500'}`}
+                onClick={() => setShowAIPanel(false)}
+                className={`p-2 rounded-xl transition-all duration-200 hover:scale-105 active:scale-95 ${isDark ? 'hover:bg-gray-700 text-gray-400 hover:text-white' : 'hover:bg-gray-100 text-gray-500 hover:text-gray-700'}`}
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M6 18L18 6M6 6l12 12" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                 </svg>
               </button>
             </div>
 
             {/* Chat messages */}
-            <div className="flex-1 overflow-auto p-4 space-y-4">
+            <div className="flex-1 overflow-auto p-6 space-y-4">
               {aiMessages.length === 0 && (
-                <div className={`text-center py-12 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
-                  <div className="w-16 h-16 mx-auto mb-4 bg-gradient-to-br from-emerald-400 to-teal-600 rounded-2xl flex items-center justify-center">
-                    <svg className="w-8 h-8 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                <div className={`text-center py-16 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                  <div className="w-20 h-20 mx-auto mb-6 bg-gradient-to-br from-emerald-500 via-teal-500 to-cyan-600 rounded-3xl flex items-center justify-center shadow-2xl transform hover:scale-110 hover:rotate-3 transition-all duration-300">
+                    <svg className="w-10 h-10 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
                     </svg>
                   </div>
-                  <p className="text-sm">发送消息开始对话</p>
+                  <h4 className={`text-base font-semibold mb-2 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                    开始对话
+                  </h4>
+                  <p className="text-sm mb-6">
+                    发送消息让 AI 帮你优化文档
+                  </p>
+                  <div className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl ${isDark ? 'bg-gray-700/50' : 'bg-gray-100'}`}>
+                    <svg className="w-4 h-4 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                    </svg>
+                    <span className={`text-xs font-medium ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                      由 AI 驱动
+                    </span>
+                  </div>
                 </div>
               )}
               {aiMessages.map((msg, i) => (
@@ -1216,7 +1240,7 @@ function App() {
             {/* Input */}
             <div className="p-4 border-t border-gray-200/50">
               <div className="flex gap-3">
-                <textarea
+                <AutoResizeTextarea
                   value={aiInput}
                   onChange={e => setAiInput(e.target.value)}
                   onKeyDown={e => {
@@ -1226,10 +1250,11 @@ function App() {
                     }
                   }}
                   placeholder="输入消息..."
-                  className={`flex-1 px-4 py-3 text-sm rounded-2xl border resize-none focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 transition-all duration-200 ${
+                  minRows={3}
+                  maxRows={8}
+                  className={`flex-1 px-4 py-3 text-sm rounded-2xl border focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 transition-all duration-200 ${
                     isDark ? 'bg-gray-700/50 border-gray-600 text-white placeholder-gray-500' : 'bg-gray-50 border-gray-200 text-gray-900 placeholder-gray-400'
                   }`}
-                  rows={3}
                 />
               </div>
               <button
@@ -1237,7 +1262,7 @@ function App() {
                 disabled={aiLoading || !aiInput.trim() || !aiSettings.apiKey || !activeFile}
                 className={`w-full mt-3 py-3 rounded-2xl text-sm font-medium transition-all duration-200 ${
                   aiLoading || !aiInput.trim() || !aiSettings.apiKey || !activeFile
-                    ? (isDark ? 'bg-gray-700/50 text-gray-500' : 'bg-gray-100 text-gray-400')
+                    ? (isDark ? 'bg-gray-700/50 text-gray-500 cursor-not-allowed' : 'bg-gray-100 text-gray-400 cursor-not-allowed')
                     : 'bg-gradient-to-r from-emerald-500 to-teal-600 text-white hover:shadow-lg active:scale-[0.98]'
                 }`}
               >
@@ -1285,30 +1310,6 @@ function App() {
       )}
 
       {/* About Modal */}
-      {showAboutModal && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50" onClick={() => setShowAboutModal(false)}>
-          <div
-            className={`w-[600px] max-h-[80vh] rounded-2xl shadow-2xl overflow-hidden ${isDark ? 'bg-gray-800' : 'bg-white'}`}
-            onClick={e => e.stopPropagation()}
-          >
-            <div className={`flex items-center justify-between px-6 py-4 border-b ${isDark ? 'border-gray-700' : 'border-gray-200'}`}>
-              <h2 className={`text-lg font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>关于 Markdown Reader</h2>
-              <button
-                onClick={() => setShowAboutModal(false)}
-                className={`p-2 rounded-xl transition-all duration-200 ${isDark ? 'hover:bg-gray-700 text-gray-400' : 'hover:bg-gray-100 text-gray-500'}`}
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-            <div className={`h-[60vh] overflow-auto p-6 ${isDark ? 'bg-gray-900' : 'bg-white'}`}>
-              <MarkdownContent content={ABOUT_CONTENT} theme={theme} />
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* Settings Modal */}
       <SettingsModal
         isOpen={showSettingsModal}
@@ -1439,7 +1440,9 @@ function App() {
             <button
               onClick={() => {
                 console.log('Delete clicked, file:', contextMenu.file);
-                if (confirm(`确定要删除 "${contextMenu.file.name}" 吗？`)) {
+                // 使用自定义确认对话框而不是原生 confirm
+                const shouldDelete = window.confirm(`确定要删除 "${contextMenu.file.name}" 吗？`);
+                if (shouldDelete) {
                   if (window.electronAPI) {
                     window.electronAPI.deleteFile(contextMenu.file.path).then((success) => {
                       console.log('Delete success:', success);
@@ -1452,15 +1455,19 @@ function App() {
                             setActiveFileId(null);
                           }
                         }
+                        toast.success('文件已删除');
                       } else {
-                        alert('删除失败');
+                        toast.error('删除失败');
                       }
-                    }).catch(err => console.error('Delete error:', err));
+                    }).catch(err => {
+                      console.error('Delete error:', err);
+                      toast.error('删除失败');
+                    });
                   }
                 }
                 setContextMenu(null);
               }}
-              className={`w-full px-4 py-2 text-sm text-left hover:bg-gray-100 dark:hover:bg-gray-700 text-red-500`}
+              className={`w-full px-4 py-2 text-sm text-left hover:bg-red-50 dark:hover:bg-red-900/20 text-red-600 dark:text-red-400`}
             >
               删除
             </button>
@@ -1608,7 +1615,7 @@ function App() {
 
                 {/* Input */}
                 <div className={`p-4 border-t ${isDark ? 'border-gray-700' : 'border-gray-200'}`}>
-                  <textarea
+                  <AutoResizeTextarea
                     value={aiInput}
                     onChange={e => setAiInput(e.target.value)}
                     onKeyDown={e => {
@@ -1618,15 +1625,16 @@ function App() {
                       }
                     }}
                     placeholder="输入消息..."
-                    className={`w-full px-4 py-3 text-sm rounded-xl border resize-none focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 transition-all duration-200 ${isDark ? 'bg-gray-700/50 border-gray-600 text-white placeholder-gray-500' : 'bg-gray-50 border-gray-200 text-gray-900 placeholder-gray-400'}`}
-                    rows={3}
+                    minRows={3}
+                    maxRows={8}
+                    className={`w-full px-4 py-3 text-sm rounded-xl border focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 transition-all duration-200 ${isDark ? 'bg-gray-700/50 border-gray-600 text-white placeholder-gray-500' : 'bg-gray-50 border-gray-200 text-gray-900 placeholder-gray-400'}`}
                   />
                   <button
                     onClick={handleAISubmit}
                     disabled={aiLoading || !aiInput.trim() || !aiSettings.apiKey || !activeFile}
                     className={`w-full mt-3 py-3 rounded-xl text-sm font-medium transition-all duration-200 ${
                       aiLoading || !aiInput.trim() || !aiSettings.apiKey || !activeFile
-                        ? (isDark ? 'bg-gray-700/50 text-gray-500' : 'bg-gray-100 text-gray-400')
+                        ? (isDark ? 'bg-gray-700/50 text-gray-500 cursor-not-allowed' : 'bg-gray-100 text-gray-400 cursor-not-allowed')
                         : 'bg-gradient-to-r from-emerald-500 to-teal-600 text-white hover:shadow-lg active:scale-[0.98]'
                     }`}
                   >
@@ -1669,6 +1677,9 @@ function App() {
         }}
         onCancel={() => setCloseConfirmDialog({ show: false, fileId: null })}
       />
+
+      {/* Toast Container */}
+      <ToastContainer toasts={toast.toasts} onClose={toast.removeToast} />
     </div>
   );
 }

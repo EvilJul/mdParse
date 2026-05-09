@@ -5,7 +5,6 @@ type ModalName =
   | 'shortcuts'
   | 'helpMenu'
   | 'guide'
-  | 'about'
   | 'settings'
   | 'preview'
   | 'aiPanel'
@@ -16,7 +15,6 @@ export function useModals() {
   const [showShortcuts, setShowShortcuts] = useState(false);
   const [showHelpMenu, setShowHelpMenu] = useState(false);
   const [showGuideModal, setShowGuideModal] = useState(false);
-  const [showAboutModal, setShowAboutModal] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [showPreviewModal, setShowPreviewModal] = useState(false);
   const [showAIPanel, setShowAIPanel] = useState(false);
@@ -33,7 +31,6 @@ export function useModals() {
       shortcuts: setShowShortcuts,
       helpMenu: setShowHelpMenu,
       guide: setShowGuideModal,
-      about: setShowAboutModal,
       settings: setShowSettingsModal,
       preview: setShowPreviewModal,
       aiPanel: setShowAIPanel,
@@ -48,7 +45,6 @@ export function useModals() {
       shortcuts: setShowShortcuts,
       helpMenu: setShowHelpMenu,
       guide: setShowGuideModal,
-      about: setShowAboutModal,
       settings: setShowSettingsModal,
       preview: setShowPreviewModal,
       aiPanel: setShowAIPanel,
@@ -63,7 +59,6 @@ export function useModals() {
       shortcuts: showShortcuts,
       helpMenu: showHelpMenu,
       guide: showGuideModal,
-      about: showAboutModal,
       settings: showSettingsModal,
       preview: showPreviewModal,
       aiPanel: showAIPanel,
@@ -85,8 +80,6 @@ export function useModals() {
     setShowHelpMenu,
     showGuideModal,
     setShowGuideModal,
-    showAboutModal,
-    setShowAboutModal,
     showSettingsModal,
     setShowSettingsModal,
     showPreviewModal,

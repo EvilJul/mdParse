@@ -55,5 +55,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     const handler = () => callback();
     ipcRenderer.on('menu-open-shortcuts', handler);
     return () => ipcRenderer.removeListener('menu-open-shortcuts', handler);
-  }
+  },
+  printToPDF: (data) => ipcRenderer.invoke('print-to-pdf', data),
+  saveImage: (data) => ipcRenderer.invoke('save-image', data),
+  uploadImage: (data) => ipcRenderer.invoke('upload-image', data)
 });

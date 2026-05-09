@@ -1,4 +1,4 @@
-export type TabType = 'editor' | 'guide' | 'about';
+export type TabType = 'editor' | 'guide';
 export type ThemeType = 'light' | 'dark';
 
 export interface FileState {
