@@ -778,7 +778,7 @@ function App() {
         </div>
       )}
       {lastSaved && !isAutoSaving && (
-        <div className="fixed top-4 right-4 z-50 px-3 py-2 rounded-lg shadow-lg bg-gray-700 text-white text-sm opacity-75">
+        <div className="fixed top-4 right-4 z-50 px-3 py-2 rounded-lg shadow-lg bg-gray-700 text-white text-sm">
           已保存 {new Date(lastSaved).toLocaleTimeString()}
         </div>
       )}
@@ -787,7 +787,7 @@ function App() {
       {!showAIPanel && (
         <button
           onClick={() => setShowAIPanel(true)}
-          className="fixed bottom-8 right-8 w-12 h-12 rounded-full bg-gradient-to-br from-emerald-400 via-teal-500 to-cyan-600 text-white shadow-2xl hover:shadow-emerald-500/30 hover:scale-110 transition-all duration-300 flex items-center justify-center z-40 ai-float-btn"
+          className="fixed bottom-8 right-8 w-12 h-12 rounded-full bg-gradient-to-br from-emerald-400 via-teal-500 to-cyan-600 text-white shadow-2xl hover:shadow-emerald-500 hover:scale-110 transition-all duration-300 flex items-center justify-center z-40 ai-float-btn"
           title="AI 助手"
         >
           <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
@@ -808,12 +808,12 @@ function App() {
             style={{ width: sidebarWidth }}
           >
             {/* Sidebar header */}
-            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200/50">
+            <div className={`flex items-center justify-between px-4 py-3 border-b ${isDark ? 'border-gray-700' : 'border-gray-200'}`}>
               <span className={`text-sm font-semibold ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>文件</span>
               <div className="flex items-center gap-1">
                 <button
                   onClick={handleNewFile}
-                  className={`p-1.5 rounded-lg transition-all duration-200 ${isDark ? 'hover:bg-gray-700/50 text-gray-400 hover:text-white' : 'hover:bg-gray-100 text-gray-500 hover:text-gray-700'}`}
+                  className={`p-1.5 rounded-lg transition-all duration-200 ${isDark ? 'hover:bg-gray-700 text-gray-400 hover:text-white' : 'hover:bg-gray-100 text-gray-500 hover:text-gray-700'}`}
                   title="新建文件"
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -824,7 +824,7 @@ function App() {
                   onClick={() => {
                     setShowFileSidebar(false);
                   }}
-                  className={`p-1.5 rounded-lg transition-all duration-200 ${isDark ? 'hover:bg-gray-700/50 text-gray-400 hover:text-white' : 'hover:bg-gray-100 text-gray-500 hover:text-gray-700'}`}
+                  className={`p-1.5 rounded-lg transition-all duration-200 ${isDark ? 'hover:bg-gray-700 text-gray-400 hover:text-white' : 'hover:bg-gray-100 text-gray-500 hover:text-gray-700'}`}
                   title="隐藏侧边栏"
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -840,7 +840,7 @@ function App() {
             {/* Unified file list - folder files + opened files */}
             <div className="flex-1 overflow-auto p-2">
               {folderPath && (
-                <div className={`flex items-center gap-2 px-3 py-2.5 mb-1 rounded-xl ${isDark ? 'bg-gray-700/30' : 'bg-gray-100/50'}`}>
+                <div className={`flex items-center gap-2 px-3 py-2.5 mb-1 rounded-xl ${isDark ? 'bg-gray-700' : 'bg-gray-100'}`}>
                   <svg className="w-4 h-4 text-emerald-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
                   </svg>
@@ -896,7 +896,7 @@ function App() {
 
                       closeFolderFiles();
                     }}
-                    className={`p-1 rounded-lg transition-all duration-200 ${isDark ? 'hover:bg-gray-600/50 text-gray-500 hover:text-gray-300' : 'hover:bg-gray-200/50 text-gray-400 hover:text-gray-600'}`}
+                    className={`p-1 rounded-lg transition-all duration-200 ${isDark ? 'hover:bg-gray-600 text-gray-500 hover:text-gray-300' : 'hover:bg-gray-200 text-gray-400 hover:text-gray-600'}`}
                     title="关闭文件夹"
                   >
                     <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -950,7 +950,7 @@ function App() {
                           }
                         }}
                         autoFocus
-                        className={`w-full px-3 py-2 text-sm border rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/30 ${isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-900'}`}
+                        className={`w-full px-3 py-2 text-sm border rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 ${isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-900'}`}
                       />
                     ) : (
                       <button
@@ -984,10 +984,10 @@ function App() {
                         className={`w-full flex items-center gap-2 px-3 py-2 text-sm text-left rounded-lg transition-colors duration-200 ${
                           isActive
                             ? (isDark ? 'bg-emerald-600 text-white' : 'bg-emerald-500 text-white')
-                            : (isDark ? 'text-gray-300 hover:bg-gray-700/50' : 'text-gray-700 hover:bg-gray-100')
+                            : (isDark ? 'text-gray-300 hover:bg-gray-700' : 'text-gray-700 hover:bg-gray-100')
                         }`}
                       >
-                        <svg className={`w-4 h-4 flex-shrink-0 ${isActive ? 'opacity-100' : 'opacity-60'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                         </svg>
                         <span className="truncate flex-1">{file.name}</span>
@@ -1017,10 +1017,10 @@ function App() {
                     className={`w-full flex items-center gap-2 px-3 py-2 text-sm text-left rounded-lg transition-colors duration-200 ${
                       activeFileId === file.id
                         ? (isDark ? 'bg-emerald-600 text-white' : 'bg-emerald-500 text-white')
-                        : (isDark ? 'text-gray-300 hover:bg-gray-700/50' : 'text-gray-700 hover:bg-gray-100')
+                        : (isDark ? 'text-gray-300 hover:bg-gray-700' : 'text-gray-700 hover:bg-gray-100')
                     }`}
                   >
-                    <svg className={`w-4 h-4 flex-shrink-0 ${activeFileId === file.id ? 'opacity-100' : 'opacity-60'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                     </svg>
                     <span className="truncate flex-1">{file.name}</span>
@@ -1033,7 +1033,7 @@ function App() {
                       e.stopPropagation();
                       handleCloseFileById(file.id);
                     }}
-                    className={`absolute right-1.5 top-1/2 -translate-y-1/2 p-1 rounded-md opacity-0 group-hover:opacity-100 transition-opacity duration-200 ${activeFileId === file.id ? 'hover:bg-white/20' : (isDark ? 'hover:bg-gray-600/50' : 'hover:bg-gray-200/50')}`}
+                    className={`absolute right-1.5 top-1/2 -translate-y-1/2 p-1 rounded-md transition-colors duration-200 ${activeFileId === file.id ? 'hover:bg-emerald-700' : (isDark ? 'hover:bg-gray-600' : 'hover:bg-gray-200')}`}
                   >
                     <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -1054,7 +1054,7 @@ function App() {
         {/* Resize handle */}
         {showFileSidebar && (
           <div
-            className={`w-0.5 cursor-col-resize hover:bg-emerald-500/50 transition-colors duration-200 ${isDark ? 'bg-gray-700/50' : 'bg-gray-200/50'}`}
+            className={`w-0.5 cursor-col-resize hover:bg-emerald-500 transition-colors duration-200 ${isDark ? 'bg-gray-700' : 'bg-gray-200'}`}
             onMouseDown={startDragging}
           />
         )}
@@ -1063,7 +1063,7 @@ function App() {
         {!showFileSidebar && (
           <button
             onClick={() => setShowFileSidebar(true)}
-            className={`absolute left-3 top-3 p-2.5 rounded-xl shadow-lg backdrop-blur-md z-10 transition-all duration-300 hover:scale-110 ${isDark ? 'bg-gray-800/80 text-gray-400 hover:text-white' : 'bg-white/80 text-gray-500 hover:text-gray-700'}`}
+            className={`absolute left-3 top-3 p-2.5 rounded-xl shadow-lg z-10 transition-all duration-300 hover:scale-110 ${isDark ? 'bg-gray-800 text-gray-400 hover:text-white' : 'bg-white text-gray-500 hover:text-gray-700'}`}
             title="显示文件侧边栏"
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1130,7 +1130,7 @@ function App() {
         {showAIPanel && (
           <div className={`w-96 border-l flex flex-col transition-all duration-300 ease-out shadow-2xl ${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}`}>
             {/* Header */}
-            <div className={`flex items-center justify-between px-6 py-4 border-b ${isDark ? 'border-gray-700 bg-gray-800/50' : 'border-gray-200 bg-gray-50/50'}`}>
+            <div className={`flex items-center justify-between px-6 py-4 border-b ${isDark ? 'border-gray-700 bg-gray-800' : 'border-gray-200 bg-gray-50'}`}>
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-xl flex items-center justify-center shadow-lg">
                   <svg className="w-5 h-5 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor">
@@ -1167,7 +1167,7 @@ function App() {
                   <p className="text-sm mb-6">
                     发送消息让 AI 帮你优化文档
                   </p>
-                  <div className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl ${isDark ? 'bg-gray-700/50' : 'bg-gray-100'}`}>
+                  <div className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl ${isDark ? 'bg-gray-700' : 'bg-gray-100'}`}>
                     <svg className="w-4 h-4 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
                     </svg>
@@ -1182,9 +1182,9 @@ function App() {
                   <div className={`max-w-[85%] px-4 py-3 rounded-2xl text-sm ${
                     msg.role === 'user'
                       ? 'bg-gradient-to-r from-emerald-500 to-teal-600 text-white shadow-md'
-                      : (isDark ? 'bg-gray-700/80 text-gray-100' : 'bg-gray-100 text-gray-800')
+                      : (isDark ? 'bg-gray-700 text-gray-100' : 'bg-gray-100 text-gray-800')
                   }`}>
-                    <div className={`font-medium text-xs mb-1 ${msg.role === 'user' ? 'text-white/70' : (isDark ? 'text-emerald-400' : 'text-emerald-600')}`}>
+                    <div className={`font-medium text-xs mb-1 ${msg.role === 'user' ? 'text-white' : (isDark ? 'text-emerald-400' : 'text-emerald-600')}`}>
                       {msg.role === 'user' ? '你' : 'AI'}
                     </div>
                     <div className="whitespace-pre-wrap">{msg.content}</div>
@@ -1193,7 +1193,7 @@ function App() {
               ))}
               {aiLoading && (
                 <div className="flex justify-start">
-                  <div className={`px-4 py-3 rounded-2xl ${isDark ? 'bg-gray-700/80' : 'bg-gray-100'}`}>
+                  <div className={`px-4 py-3 rounded-2xl ${isDark ? 'bg-gray-700' : 'bg-gray-100'}`}>
                     <div className="flex gap-1">
                       <div className={`w-2 h-2 rounded-full ${isDark ? 'bg-gray-400' : 'bg-gray-400'} animate-bounce`} style={{ animationDelay: '0ms' }} />
                       <div className={`w-2 h-2 rounded-full ${isDark ? 'bg-gray-400' : 'bg-gray-400'} animate-bounce`} style={{ animationDelay: '150ms' }} />
@@ -1238,7 +1238,7 @@ function App() {
             </div>
 
             {/* Input */}
-            <div className="p-4 border-t border-gray-200/50">
+            <div className={`p-4 border-t ${isDark ? 'border-gray-700' : 'border-gray-200'}`}>
               <div className="flex gap-3">
                 <AutoResizeTextarea
                   value={aiInput}
@@ -1252,8 +1252,8 @@ function App() {
                   placeholder="输入消息..."
                   minRows={3}
                   maxRows={8}
-                  className={`flex-1 px-4 py-3 text-sm rounded-2xl border focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 transition-all duration-200 ${
-                    isDark ? 'bg-gray-700/50 border-gray-600 text-white placeholder-gray-500' : 'bg-gray-50 border-gray-200 text-gray-900 placeholder-gray-400'
+                  className={`flex-1 px-4 py-3 text-sm rounded-2xl border focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all duration-200 ${
+                    isDark ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-500' : 'bg-gray-50 border-gray-200 text-gray-900 placeholder-gray-400'
                   }`}
                 />
               </div>
@@ -1262,7 +1262,7 @@ function App() {
                 disabled={aiLoading || !aiInput.trim() || !aiSettings.apiKey || !activeFile}
                 className={`w-full mt-3 py-3 rounded-2xl text-sm font-medium transition-all duration-200 ${
                   aiLoading || !aiInput.trim() || !aiSettings.apiKey || !activeFile
-                    ? (isDark ? 'bg-gray-700/50 text-gray-500 cursor-not-allowed' : 'bg-gray-100 text-gray-400 cursor-not-allowed')
+                    ? (isDark ? 'bg-gray-700 text-gray-500 cursor-not-allowed' : 'bg-gray-100 text-gray-400 cursor-not-allowed')
                     : 'bg-gradient-to-r from-emerald-500 to-teal-600 text-white hover:shadow-lg active:scale-[0.98]'
                 }`}
               >
@@ -1286,12 +1286,12 @@ function App() {
 
       {/* Guide Modal */}
       {showGuideModal && (
-        <div className="fixed inset-0 bg-black/40 backdrop-blur-md flex items-center justify-center z-50" onClick={() => setShowGuideModal(false)}>
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50" onClick={() => setShowGuideModal(false)}>
           <div
-            className={`w-[800px] max-h-[80vh] rounded-2xl shadow-2xl overflow-hidden dialog-animate ${isDark ? 'bg-gray-800' : 'bg-white'}`}
+            className={`w-[800px] max-h-[80vh] rounded-2xl shadow-2xl overflow-hidden dialog-animate ${isDark ? 'bg-gray-900' : 'bg-white'}`}
             onClick={e => e.stopPropagation()}
           >
-            <div className={`flex items-center justify-between px-6 py-4 border-b ${isDark ? 'border-gray-700' : 'border-gray-200'}`}>
+            <div className={`flex items-center justify-between px-6 py-4 border-b ${isDark ? 'border-gray-700 bg-gray-900' : 'border-gray-200 bg-gray-50'}`}>
               <h2 className={`text-lg font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>Markdown 语法指南</h2>
               <button
                 onClick={() => setShowGuideModal(false)}
@@ -1326,10 +1326,10 @@ function App() {
 
       {/* Preview Modal */}
       {showPreviewModal && pendingContent && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-md flex items-center justify-center z-50" onClick={() => setShowPreviewModal(false)}>
-          <div className={`w-[90vw] h-[90vh] rounded-2xl shadow-2xl overflow-hidden dialog-animate flex flex-col ${isDark ? 'bg-gray-800' : 'bg-white'}`} onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50" onClick={() => setShowPreviewModal(false)}>
+          <div className={`w-[90vw] h-[90vh] rounded-2xl shadow-2xl overflow-hidden dialog-animate flex flex-col ${isDark ? 'bg-gray-900' : 'bg-white'}`} onClick={e => e.stopPropagation()}>
             {/* Header */}
-            <div className={`flex items-center justify-between px-6 py-4 border-b ${isDark ? 'border-gray-700' : 'border-gray-200'}`}>
+            <div className={`flex items-center justify-between px-6 py-4 border-b ${isDark ? 'border-gray-700 bg-gray-900' : 'border-gray-200 bg-gray-50'}`}>
               <div className="flex items-center gap-4">
                 <h2 className={`text-lg font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>预览优化内容</h2>
                 <div className="flex items-center gap-2">
@@ -1390,7 +1390,7 @@ function App() {
 
       {/* Shortcuts Dialog */}
       {showShortcuts && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setShowShortcuts(false)}>
+        <div className="fixed inset-0 bg-gray-950 flex items-center justify-center z-50" onClick={() => setShowShortcuts(false)}>
           <div className={`rounded-xl p-6 w-80 max-h-[80vh] overflow-auto ${isDark ? 'bg-gray-800' : 'bg-white'} shadow-xl`} onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-4">
               <h3 className={`text-lg font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>快捷键</h3>
@@ -1433,7 +1433,7 @@ function App() {
                 setShowRenameDialog(true);
                 setContextMenu(null);
               }}
-              className={`w-full px-4 py-2 text-sm text-left hover:bg-gray-100 dark:hover:bg-gray-700 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}
+              className={`w-full px-4 py-2 text-sm text-left ${isDark ? 'text-gray-300 hover:bg-gray-700' : 'text-gray-700 hover:bg-gray-100'}`}
             >
               重命名
             </button>
@@ -1467,7 +1467,7 @@ function App() {
                 }
                 setContextMenu(null);
               }}
-              className={`w-full px-4 py-2 text-sm text-left hover:bg-red-50 dark:hover:bg-red-900/20 text-red-600 dark:text-red-400`}
+              className={`w-full px-4 py-2 text-sm text-left ${isDark ? 'text-red-400 hover:bg-red-900' : 'text-red-600 hover:bg-red-50'}`}
             >
               删除
             </button>
@@ -1478,7 +1478,7 @@ function App() {
 
       {/* Rename Dialog */}
       {showRenameDialog && renameTarget && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setShowRenameDialog(false)}>
+        <div className="fixed inset-0 bg-gray-950 flex items-center justify-center z-50" onClick={() => setShowRenameDialog(false)}>
           <div className={`rounded-xl p-6 w-80 ${isDark ? 'bg-gray-800' : 'bg-white'} shadow-xl`} onClick={e => e.stopPropagation()}>
             <h3 className={`text-lg font-semibold mb-4 ${isDark ? 'text-white' : 'text-gray-900'}`}>重命名文件</h3>
             <input
@@ -1515,11 +1515,11 @@ function App() {
       {showAIModal && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50" onClick={() => setShowAIModal(false)}>
           <div
-            className={`w-[800px] max-h-[80vh] rounded-2xl shadow-2xl overflow-hidden dialog-animate ${isDark ? 'bg-gray-800' : 'bg-white'}`}
+            className={`w-[800px] max-h-[80vh] rounded-2xl shadow-2xl overflow-hidden dialog-animate ${isDark ? 'bg-gray-900' : 'bg-white'}`}
             onClick={e => e.stopPropagation()}
           >
             {/* Modal Header */}
-            <div className={`flex items-center justify-between px-6 py-4 border-b ${isDark ? 'border-gray-700' : 'border-gray-200'}`}>
+            <div className={`flex items-center justify-between px-6 py-4 border-b ${isDark ? 'border-gray-700 bg-gray-900' : 'border-gray-200 bg-gray-50'}`}>
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 bg-gradient-to-br from-emerald-400 to-teal-600 rounded-xl flex items-center justify-center">
                   <svg className="w-6 h-6 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor">
@@ -1558,9 +1558,9 @@ function App() {
                       <div className={`max-w-[85%] px-4 py-3 rounded-2xl text-sm ${
                         msg.role === 'user'
                           ? 'bg-gradient-to-r from-emerald-500 to-teal-600 text-white shadow-md'
-                          : (isDark ? 'bg-gray-700/80 text-gray-100' : 'bg-gray-100 text-gray-800')
+                          : (isDark ? 'bg-gray-700 text-gray-100' : 'bg-gray-100 text-gray-800')
                       }`}>
-                        <div className={`font-medium text-xs mb-1 ${msg.role === 'user' ? 'text-white/70' : (isDark ? 'text-emerald-400' : 'text-emerald-600')}`}>
+                        <div className={`font-medium text-xs mb-1 ${msg.role === 'user' ? 'text-white' : (isDark ? 'text-emerald-400' : 'text-emerald-600')}`}>
                           {msg.role === 'user' ? '你' : 'AI'}
                         </div>
                         <div className="whitespace-pre-wrap">{msg.content}</div>
@@ -1569,7 +1569,7 @@ function App() {
                   ))}
                   {aiLoading && (
                     <div className="flex justify-start">
-                      <div className={`px-4 py-3 rounded-2xl ${isDark ? 'bg-gray-700/80' : 'bg-gray-100'}`}>
+                      <div className={`px-4 py-3 rounded-2xl ${isDark ? 'bg-gray-700' : 'bg-gray-100'}`}>
                         <div className="flex gap-1">
                           <div className={`w-2 h-2 rounded-full ${isDark ? 'bg-gray-400' : 'bg-gray-400'} animate-bounce`} style={{ animationDelay: '0ms' }} />
                           <div className={`w-2 h-2 rounded-full ${isDark ? 'bg-gray-400' : 'bg-gray-400'} animate-bounce`} style={{ animationDelay: '150ms' }} />
@@ -1627,14 +1627,14 @@ function App() {
                     placeholder="输入消息..."
                     minRows={3}
                     maxRows={8}
-                    className={`w-full px-4 py-3 text-sm rounded-xl border focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 transition-all duration-200 ${isDark ? 'bg-gray-700/50 border-gray-600 text-white placeholder-gray-500' : 'bg-gray-50 border-gray-200 text-gray-900 placeholder-gray-400'}`}
+                    className={`w-full px-4 py-3 text-sm rounded-xl border focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all duration-200 ${isDark ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-500' : 'bg-gray-50 border-gray-200 text-gray-900 placeholder-gray-400'}`}
                   />
                   <button
                     onClick={handleAISubmit}
                     disabled={aiLoading || !aiInput.trim() || !aiSettings.apiKey || !activeFile}
                     className={`w-full mt-3 py-3 rounded-xl text-sm font-medium transition-all duration-200 ${
                       aiLoading || !aiInput.trim() || !aiSettings.apiKey || !activeFile
-                        ? (isDark ? 'bg-gray-700/50 text-gray-500 cursor-not-allowed' : 'bg-gray-100 text-gray-400 cursor-not-allowed')
+                        ? (isDark ? 'bg-gray-700 text-gray-500 cursor-not-allowed' : 'bg-gray-100 text-gray-400 cursor-not-allowed')
                         : 'bg-gradient-to-r from-emerald-500 to-teal-600 text-white hover:shadow-lg active:scale-[0.98]'
                     }`}
                   >
