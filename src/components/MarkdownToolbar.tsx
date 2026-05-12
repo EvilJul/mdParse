@@ -121,7 +121,7 @@ export function MarkdownToolbar({ onInsert, isDark }: MarkdownToolbarProps) {
   ];
 
   return (
-    <div className={`flex items-center gap-1 px-3 py-2 border-b ${isDark ? 'bg-gray-800/50 border-gray-700' : 'bg-gray-50/80 border-gray-200'}`}>
+    <div className={`flex items-center gap-1 px-3 py-2 border-b ${isDark ? 'bg-gray-800 border-gray-700' : 'bg-gray-50 border-gray-200'}`}>
       <div className="flex items-center gap-0.5 flex-wrap">
         {tools.map((tool, index) => (
           <button

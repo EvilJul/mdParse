@@ -37,10 +37,10 @@ export function AIPanel({
 
   return (
     <div className={`w-80 border-l flex flex-col transition-all duration-300 ease-out ${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}`}>
-      <div className="flex items-center justify-end p-4 border-b border-gray-200/50">
+      <div className={`flex items-center justify-end p-4 border-b ${isDark ? 'border-gray-700' : 'border-gray-200'}`}>
         <button
           onClick={onClose}
-          className={`p-2 rounded-full transition-all duration-200 ${isDark ? 'hover:bg-gray-700/50 text-gray-400' : 'hover:bg-gray-100 text-gray-500'}`}
+          className={`p-2 rounded-full transition-all duration-200 ${isDark ? 'hover:bg-gray-700 text-gray-400' : 'hover:bg-gray-100 text-gray-500'}`}
         >
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M6 18L18 6M6 6l12 12" />
@@ -64,9 +64,9 @@ export function AIPanel({
             <div className={`max-w-[85%] px-4 py-3 rounded-2xl text-sm ${
               msg.role === 'user'
                 ? 'bg-gradient-to-r from-emerald-500 to-teal-600 text-white shadow-md'
-                : (isDark ? 'bg-gray-700/80 text-gray-100' : 'bg-gray-100 text-gray-800')
+                : (isDark ? 'bg-gray-700 text-gray-100' : 'bg-gray-100 text-gray-800')
             }`}>
-              <div className={`font-medium text-xs mb-1 ${msg.role === 'user' ? 'text-white/70' : (isDark ? 'text-emerald-400' : 'text-emerald-600')}`}>
+              <div className={`font-medium text-xs mb-1 ${msg.role === 'user' ? 'text-white' : (isDark ? 'text-emerald-400' : 'text-emerald-600')}`}>
                 {msg.role === 'user' ? '你' : 'AI'}
               </div>
               <div className="whitespace-pre-wrap">{msg.content}</div>
@@ -75,7 +75,7 @@ export function AIPanel({
         ))}
         {loading && (
           <div className="flex justify-start">
-            <div className={`px-4 py-3 rounded-2xl ${isDark ? 'bg-gray-700/80' : 'bg-gray-100'}`}>
+            <div className={`px-4 py-3 rounded-2xl ${isDark ? 'bg-gray-700' : 'bg-gray-100'}`}>
               <div className="flex gap-1">
                 <div className={`w-2 h-2 rounded-full ${isDark ? 'bg-gray-400' : 'bg-gray-400'} animate-bounce`} style={{ animationDelay: '0ms' }} />
                 <div className={`w-2 h-2 rounded-full ${isDark ? 'bg-gray-400' : 'bg-gray-400'} animate-bounce`} style={{ animationDelay: '150ms' }} />
@@ -119,7 +119,7 @@ export function AIPanel({
         )}
       </div>
 
-      <div className="p-4 border-t border-gray-200/50">
+      <div className={`p-4 border-t ${isDark ? 'border-gray-700' : 'border-gray-200'}`}>
         <div className="flex gap-3">
           <textarea
             value={input}
@@ -131,8 +131,8 @@ export function AIPanel({
               }
             }}
             placeholder="输入消息..."
-            className={`flex-1 px-4 py-3 text-sm rounded-2xl border resize-none focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 transition-all duration-200 ${
-              isDark ? 'bg-gray-700/50 border-gray-600 text-white placeholder-gray-500' : 'bg-gray-50 border-gray-200 text-gray-900 placeholder-gray-400'
+            className={`flex-1 px-4 py-3 text-sm rounded-2xl border resize-none focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all duration-200 ${
+              isDark ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-500' : 'bg-gray-50 border-gray-200 text-gray-900 placeholder-gray-400'
             }`}
             rows={3}
           />
@@ -142,7 +142,7 @@ export function AIPanel({
           disabled={loading || !input.trim() || !hasApiKey || !hasActiveFile}
           className={`w-full mt-3 py-3 rounded-2xl text-sm font-medium transition-all duration-200 ${
             loading || !input.trim() || !hasApiKey || !hasActiveFile
-              ? (isDark ? 'bg-gray-700/50 text-gray-500' : 'bg-gray-100 text-gray-400')
+              ? (isDark ? 'bg-gray-700 text-gray-500' : 'bg-gray-100 text-gray-400')
               : 'bg-gradient-to-r from-emerald-500 to-teal-600 text-white hover:shadow-lg active:scale-[0.98]'
           }`}
         >

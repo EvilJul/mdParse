@@ -1,8 +1,85 @@
 const { app, BrowserWindow, ipcMain, dialog, Menu } = require('electron');
 const path = require('path');
 const fs = require('fs');
+const http = require('http');
+const { spawn } = require('child_process');
 
 let mainWindow;
+let viteProcess;
+
+const DEV_HOST = '127.0.0.1';
+const DEV_PORT = 5187;
+
+function canReachDevServer(port) {
+  return new Promise((resolve) => {
+    const request = http.get({ host: DEV_HOST, port, path: '/', timeout: 1000 }, (response) => {
+      response.resume();
+      resolve(response.statusCode >= 200 && response.statusCode < 500);
+    });
+
+    request.on('timeout', () => {
+      request.destroy();
+      resolve(false);
+    });
+    request.on('error', () => resolve(false));
+  });
+}
+
+function startViteDevServer() {
+  if (viteProcess) {
+    return;
+  }
+
+  const appPath = app.getAppPath();
+  const viteScript = path.join(appPath, 'node_modules', 'vite', 'bin', 'vite.js');
+  if (!fs.existsSync(viteScript)) {
+    console.log('Vite script not found:', viteScript);
+    return;
+  }
+
+  const nodePath = process.env.npm_node_execpath || process.env.NODE || 'node';
+  viteProcess = spawn(nodePath, [viteScript, '--host', DEV_HOST, '--port', String(DEV_PORT), '--strictPort', '--clearScreen', 'false'], {
+    cwd: appPath,
+    env: { ...process.env, BROWSER: 'none' },
+    stdio: ['ignore', 'pipe', 'pipe'],
+    windowsHide: true
+  });
+
+  viteProcess.stdout.on('data', (data) => console.log(`[vite] ${data.toString().trim()}`));
+  viteProcess.stderr.on('data', (data) => console.log(`[vite] ${data.toString().trim()}`));
+  viteProcess.on('exit', (code, signal) => {
+    console.log(`Vite dev server exited: code=${code} signal=${signal}`);
+    viteProcess = null;
+  });
+}
+
+async function waitForDevServer(timeoutMs = 20000) {
+  const deadline = Date.now() + timeoutMs;
+  startViteDevServer();
+  while (Date.now() < deadline) {
+    if (await canReachDevServer(DEV_PORT)) {
+      return DEV_PORT;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 300));
+  }
+
+  return null;
+}
+
+async function loadDevelopmentApp(window) {
+  const port = await waitForDevServer();
+  if (port) {
+    const devUrl = `http://${DEV_HOST}:${port}/`;
+    console.log('Loading dev server:', devUrl);
+    await window.loadURL(devUrl);
+    window.webContents.openDevTools({ mode: 'detach' });
+    return;
+  }
+
+  console.log('Could not connect to dev server, trying fallback to file');
+  const indexPath = path.join(app.getAppPath(), 'dist', 'index.html');
+  await window.loadFile(indexPath);
+}
 
 function createWindow() {
   mainWindow = new BrowserWindow({
@@ -30,33 +107,10 @@ const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged;
 console.log('Is dev:', isDev);
 
 if (isDev) {
-    // Try multiple times with different ports in case 5175 is busy
-    const tryLoadDevServer = (port, attempts) => {
-        if (attempts <= 0) {
-            console.log('Could not connect to dev server, trying fallback to file');
-            // Fallback to file if dev server fails
-            const indexPath = path.join(__dirname, '../dist/index.html');
-            mainWindow.loadFile(indexPath).catch(e => console.log('File fallback failed:', e));
-            return;
-        }
-
-        mainWindow.loadURL(`http://localhost:${port}`)
-            .then(() => {
-                console.log(`Loaded dev server at port ${port}`);
-            })
-            .catch(err => {
-                console.log(`Failed to load port ${port}, trying next...`);
-                // Try different ports
-                const nextPort = port === 5173 ? 5174 : (port === 5174 ? 5175 : 5173);
-                tryLoadDevServer(nextPort, attempts - 1);
-            });
-    };
-
-    // Give dev server time to start
-    setTimeout(() => {
-        tryLoadDevServer(5173, 4);
-        mainWindow.webContents.openDevTools();
-    }, 2000);
+    loadDevelopmentApp(mainWindow).catch((error) => {
+      console.log('Failed to load development app:', error);
+      mainWindow.show();
+    });
 } else {
     // In production, load from the app's dist folder
     const indexPath = path.join(appPath, 'dist/index.html');
@@ -321,18 +375,29 @@ function handleFileOpen(filePath) {
   }
 }
 
-// Windows: handle file association via command line arguments
-const gotTheLock = app.requestSingleInstanceLock();
-if (!gotTheLock) {
-  app.quit();
+// Windows: handle file association via command line arguments.
+// Keep single-instance behavior for packaged builds, but allow repeated
+// development launches so stale blank windows do not capture electron:dev.
+if (app.isPackaged) {
+  const gotTheLock = app.requestSingleInstanceLock();
+  if (!gotTheLock) {
+    app.quit();
+  } else {
+    app.on('second-instance', (event, commandLine) => {
+      // Someone tried to run a second instance
+      if (mainWindow) {
+        if (mainWindow.isMinimized()) mainWindow.restore();
+        mainWindow.focus();
+      }
+      // Handle file opened via second instance
+      const filePath = commandLine.find(arg => arg.endsWith('.md'));
+      if (filePath) {
+        handleFileOpen(filePath);
+      }
+    });
+  }
 } else {
   app.on('second-instance', (event, commandLine) => {
-    // Someone tried to run a second instance
-    if (mainWindow) {
-      if (mainWindow.isMinimized()) mainWindow.restore();
-      mainWindow.focus();
-    }
-    // Handle file opened via second instance
     const filePath = commandLine.find(arg => arg.endsWith('.md'));
     if (filePath) {
       handleFileOpen(filePath);
@@ -361,5 +426,12 @@ app.whenReady().then(() => {
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
     app.quit();
+  }
+});
+
+app.on('before-quit', () => {
+  if (viteProcess) {
+    viteProcess.kill();
+    viteProcess = null;
   }
 });

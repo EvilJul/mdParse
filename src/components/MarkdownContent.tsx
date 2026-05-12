@@ -47,7 +47,7 @@ export function MarkdownContent({ content, theme }: MarkdownContentProps) {
               <div className="relative group">
                 <button
                   onClick={() => handleCopy(codeString, codeId)}
-                  className={`absolute top-3 right-3 px-2 py-1 text-xs rounded transition-all duration-200 opacity-0 group-hover:opacity-100 z-10 ${
+                  className={`absolute top-3 right-3 px-2 py-1 text-xs rounded transition-all duration-200 z-10 ${
                     isDark ? 'bg-gray-700 text-gray-300 hover:bg-gray-600' : 'bg-gray-200 text-gray-600 hover:bg-gray-300'
                   }`}
                 >

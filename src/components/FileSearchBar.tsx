@@ -34,9 +34,9 @@ export function FileSearchBar({ onSearch, isDark }: FileSearchBarProps) {
           value={query}
           onChange={(e) => handleChange(e.target.value)}
           placeholder="搜索文件..."
-          className={`w-full pl-9 pr-8 py-2 text-sm rounded-xl border transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 ${
+          className={`w-full pl-9 pr-8 py-2 text-sm rounded-xl border transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-emerald-500 ${
             isDark 
-              ? 'bg-gray-700/50 border-gray-600 text-white placeholder-gray-500 focus:bg-gray-700 focus:border-emerald-500' 
+              ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-500 focus:bg-gray-700 focus:border-emerald-500' 
               : 'bg-white border-gray-200 text-gray-900 placeholder-gray-400 focus:border-emerald-500 focus:shadow-sm'
           }`}
         />

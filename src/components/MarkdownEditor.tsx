@@ -94,7 +94,7 @@ export function MarkdownEditor({ content, fileName, onContentChange, onClose, on
   return (
     <div className="w-full h-full flex flex-col">
       {/* Header */}
-      <div className={`flex items-center justify-between px-6 py-3 border-b ${isDark ? 'border-gray-700 bg-gray-800/50' : 'border-gray-200 bg-white'}`}>
+      <div className={`flex items-center justify-between px-6 py-3 border-b ${isDark ? 'border-gray-700 bg-gray-800' : 'border-gray-200 bg-white'}`}>
         {/* Left: File name and info */}
         <div className="flex items-center gap-3">
           {isEditingName ? (
@@ -105,8 +105,8 @@ export function MarkdownEditor({ content, fileName, onContentChange, onClose, on
               onBlur={handleNameSubmit}
               onKeyDown={handleNameKeyDown}
               autoFocus
-              className={`text-base font-semibold bg-transparent border-b-2 border-emerald-500 outline-none px-1 ${
-                isDark ? 'text-white' : 'text-gray-900'
+              className={`text-base font-semibold border-b-2 border-emerald-500 outline-none px-1 ${
+                isDark ? 'bg-gray-800 text-white' : 'bg-white text-gray-900'
               }`}
             />
           ) : (
@@ -194,7 +194,7 @@ export function MarkdownEditor({ content, fileName, onContentChange, onClose, on
               value={content}
               onChange={handleContentChange}
               onKeyDown={handleKeyDown}
-              className={`flex-1 w-full p-5 font-mono border rounded-2xl resize-none focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 transition-all duration-200 shadow-sm ${
+              className={`flex-1 w-full p-5 font-mono border rounded-2xl resize-none focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all duration-200 shadow-sm ${
                 isDark ? 'bg-gray-800 text-gray-100 border-gray-700 placeholder-gray-500' : 'bg-white text-gray-800 border-gray-200 placeholder-gray-400'
               }`}
               style={{ fontSize: `${fontSize}px`, lineHeight: '1.6' }}
@@ -319,7 +319,7 @@ function CodeBlock({ code, language, style, theme }: { code: string; language: s
     <div className="relative group">
       <button
         onClick={handleCopy}
-        className={`absolute top-3 right-3 px-2 py-1 text-xs rounded transition-all duration-200 opacity-0 group-hover:opacity-100 z-10 ${
+        className={`absolute top-3 right-3 px-2 py-1 text-xs rounded transition-all duration-200 z-10 ${
           isDark ? 'bg-gray-700 text-gray-300 hover:bg-gray-600' : 'bg-gray-200 text-gray-600 hover:bg-gray-300'
         }`}
       >

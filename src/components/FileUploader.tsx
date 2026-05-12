@@ -76,13 +76,13 @@ export function FileUploader({ onFileLoaded, theme = 'light' }: FileUploaderProp
           transition-all duration-300 transform
           ${isDragging 
             ? (isDark 
-              ? 'border-emerald-500 bg-gradient-to-br from-emerald-900/30 to-teal-900/30 scale-105 shadow-2xl shadow-emerald-500/20' 
-              : 'border-emerald-400 bg-gradient-to-br from-emerald-50 to-teal-50 scale-105 shadow-2xl shadow-emerald-500/20')
+              ? 'border-emerald-500 bg-gradient-to-br from-emerald-900 to-teal-900 scale-105 shadow-2xl shadow-emerald-500' 
+              : 'border-emerald-400 bg-gradient-to-br from-emerald-50 to-teal-50 scale-105 shadow-2xl shadow-emerald-500')
             : (isDark 
-              ? 'border-gray-600 hover:border-gray-500 bg-gray-800/50 hover:bg-gray-800 hover:shadow-xl' 
+              ? 'border-gray-600 hover:border-gray-500 bg-gray-800 hover:bg-gray-700 hover:shadow-xl' 
               : 'border-gray-300 hover:border-gray-400 bg-white hover:shadow-xl')
           }
-          ${error ? (isDark ? 'border-red-500/50 bg-red-900/10' : 'border-red-400/50 bg-red-50/50') : ''}
+          ${error ? (isDark ? 'border-red-500 bg-red-900' : 'border-red-400 bg-red-50') : ''}
         `}
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
@@ -146,7 +146,7 @@ export function FileUploader({ onFileLoaded, theme = 'light' }: FileUploaderProp
           {/* Features */}
           <div className="flex items-center gap-4 mb-6">
             <div className={`flex items-center gap-2 px-4 py-2 rounded-xl ${
-              isDark ? 'bg-gray-700/50' : 'bg-gray-100'
+              isDark ? 'bg-gray-700' : 'bg-gray-100'
             }`}>
               <svg className="w-4 h-4 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
@@ -156,7 +156,7 @@ export function FileUploader({ onFileLoaded, theme = 'light' }: FileUploaderProp
               </span>
             </div>
             <div className={`flex items-center gap-2 px-4 py-2 rounded-xl ${
-              isDark ? 'bg-gray-700/50' : 'bg-gray-100'
+              isDark ? 'bg-gray-700' : 'bg-gray-100'
             }`}>
               <svg className="w-4 h-4 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
@@ -184,7 +184,7 @@ export function FileUploader({ onFileLoaded, theme = 'light' }: FileUploaderProp
         {error && (
           <div className={`
             mt-6 flex items-center justify-center gap-2 px-4 py-3 rounded-xl
-            ${isDark ? 'bg-red-900/30 border border-red-500/50' : 'bg-red-50 border border-red-200'}
+            ${isDark ? 'bg-red-900 border border-red-500' : 'bg-red-50 border border-red-200'}
           `}>
             <svg className="w-5 h-5 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />

@@ -21,7 +21,7 @@ export function SearchReplace({ isOpen, isDark, onClose, onSearch, onReplace, on
         <span className={`text-sm font-semibold ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>搜索和替换</span>
         <button
           onClick={onClose}
-          className={`p-1 rounded hover:bg-gray-500/20 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}
+          className={`p-1 rounded ${isDark ? 'text-gray-400 hover:bg-gray-700' : 'text-gray-500 hover:bg-gray-200'}`}
         >
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />

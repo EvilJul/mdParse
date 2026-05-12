@@ -1390,8 +1390,8 @@ function App() {
 
       {/* Shortcuts Dialog */}
       {showShortcuts && (
-        <div className="fixed inset-0 bg-gray-950 flex items-center justify-center z-50" onClick={() => setShowShortcuts(false)}>
-          <div className={`rounded-xl p-6 w-80 max-h-[80vh] overflow-auto ${isDark ? 'bg-gray-800' : 'bg-white'} shadow-xl`} onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50" onClick={() => setShowShortcuts(false)}>
+          <div className={`rounded-xl p-6 w-80 max-h-[80vh] overflow-auto ${isDark ? 'bg-gray-900' : 'bg-white'} shadow-xl`} onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-4">
               <h3 className={`text-lg font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>快捷键</h3>
               <button onClick={() => setShowShortcuts(false)} className={`${isDark ? 'text-gray-400' : 'text-gray-500'} hover:text-gray-700`}>
@@ -1478,8 +1478,8 @@ function App() {
 
       {/* Rename Dialog */}
       {showRenameDialog && renameTarget && (
-        <div className="fixed inset-0 bg-gray-950 flex items-center justify-center z-50" onClick={() => setShowRenameDialog(false)}>
-          <div className={`rounded-xl p-6 w-80 ${isDark ? 'bg-gray-800' : 'bg-white'} shadow-xl`} onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50" onClick={() => setShowRenameDialog(false)}>
+          <div className={`rounded-xl p-6 w-80 ${isDark ? 'bg-gray-900' : 'bg-white'} shadow-xl`} onClick={e => e.stopPropagation()}>
             <h3 className={`text-lg font-semibold mb-4 ${isDark ? 'text-white' : 'text-gray-900'}`}>重命名文件</h3>
             <input
               type="text"

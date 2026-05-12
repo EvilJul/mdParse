@@ -22,13 +22,13 @@ export function FileContextMenu({ isOpen, isDark, x, y, onRename, onDelete, onCl
       >
         <button
           onClick={onRename}
-          className={`w-full px-4 py-2 text-sm text-left hover:bg-gray-100 dark:hover:bg-gray-700 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}
+          className={`w-full px-4 py-2 text-sm text-left ${isDark ? 'text-gray-300 hover:bg-gray-700' : 'text-gray-700 hover:bg-gray-100'}`}
         >
           重命名
         </button>
         <button
           onClick={onDelete}
-          className={`w-full px-4 py-2 text-sm text-left hover:bg-gray-100 dark:hover:bg-gray-700 text-red-500`}
+          className={`w-full px-4 py-2 text-sm text-left ${isDark ? 'text-red-400 hover:bg-red-900' : 'text-red-600 hover:bg-red-50'}`}
         >
           删除
         </button>
