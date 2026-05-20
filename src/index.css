@@ -9,6 +9,7 @@
   font-weight: 400;
   color: #374151;
   background-color: #f9fafb;
+  color-scheme: light;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
@@ -58,6 +59,133 @@ html.dark body,
 html.dark #root {
   background-color: #111827;
   color: #f9fafb;
+  color-scheme: dark;
+}
+
+:where(.dark) input,
+:where(.dark) textarea,
+:where(.dark) select {
+  background-color: #1f2937;
+  color: #f9fafb;
+  border-color: #4b5563;
+}
+
+:where(.dark) input::placeholder,
+:where(.dark) textarea::placeholder {
+  color: #6b7280;
+}
+
+:where(.dark) option {
+  background-color: #1f2937;
+  color: #f9fafb;
+}
+
+/* Dark theme compatibility for legacy hard-coded light utilities. */
+html.dark .bg-white,
+html.dark .bg-gray-50 {
+  background-color: #111827;
+}
+
+html.dark .bg-gray-100 {
+  background-color: #1f2937;
+}
+
+html.dark .bg-gray-200 {
+  background-color: #374151;
+}
+
+html.dark .bg-blue-50,
+html.dark .bg-emerald-50,
+html.dark .bg-green-50,
+html.dark .bg-red-50,
+html.dark .bg-yellow-50,
+html.dark .bg-teal-50 {
+  background-color: #1f2937;
+}
+
+html.dark .text-gray-900,
+html.dark .text-gray-800 {
+  color: #f9fafb;
+}
+
+html.dark .text-gray-700,
+html.dark .text-gray-600 {
+  color: #d1d5db;
+}
+
+html.dark .text-gray-500,
+html.dark .text-gray-400 {
+  color: #9ca3af;
+}
+
+html.dark .text-blue-700 {
+  color: #93c5fd;
+}
+
+html.dark .text-emerald-700,
+html.dark .text-green-700 {
+  color: #86efac;
+}
+
+html.dark .text-red-700 {
+  color: #fca5a5;
+}
+
+html.dark .text-yellow-700 {
+  color: #fde68a;
+}
+
+html.dark .text-teal-600,
+html.dark .text-teal-700 {
+  color: #5eead4;
+}
+
+html.dark .border-gray-100,
+html.dark .border-gray-200,
+html.dark .border-gray-300 {
+  border-color: #374151;
+}
+
+html.dark .border-blue-200,
+html.dark .border-green-200,
+html.dark .border-red-200,
+html.dark .border-yellow-200 {
+  border-color: #4b5563;
+}
+
+html.dark .divide-gray-100 > :not([hidden]) ~ :not([hidden]),
+html.dark .divide-gray-200 > :not([hidden]) ~ :not([hidden]) {
+  border-color: #374151;
+}
+
+html.dark .shadow-md,
+html.dark .shadow-lg,
+html.dark .shadow-xl,
+html.dark .shadow-2xl {
+  --tw-shadow-color: rgb(0 0 0 / 0.45);
+}
+
+html.dark .hover\:bg-white:hover,
+html.dark .hover\:bg-gray-50:hover,
+html.dark .hover\:bg-gray-100:hover {
+  background-color: #1f2937;
+}
+
+html.dark .hover\:bg-gray-200:hover,
+html.dark .hover\:bg-gray-300:hover {
+  background-color: #374151;
+}
+
+html.dark .hover\:text-gray-900:hover,
+html.dark .hover\:text-gray-800:hover,
+html.dark .hover\:text-gray-700:hover,
+html.dark .hover\:text-gray-600:hover {
+  color: #f3f4f6;
+}
+
+html.dark .placeholder-gray-400::placeholder,
+html.dark .placeholder-gray-500::placeholder {
+  color: #6b7280;
 }
 
 /* Smooth transitions */

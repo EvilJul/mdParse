@@ -15,6 +15,7 @@ export function useTheme() {
   useEffect(() => {
     localStorage.setItem('mdparse-theme', theme);
     document.documentElement.classList.toggle('dark', theme === 'dark');
+    document.documentElement.style.colorScheme = theme === 'dark' ? 'dark' : 'light';
   }, [theme]);
 
   useEffect(() => {

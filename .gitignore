@@ -1,78 +1,44 @@
 # Dependencies
 node_modules/
+package-lock.json
 
-# Build output
+# Build outputs
 dist/
-dist-ssr/
 release/
+*.tsbuildinfo
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
 
 # Logs
-logs/
 *.log
 npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-pnpm-debug.log*
-lerna-debug.log*
 
-# Editor directories and files
-.vscode/*
-!.vscode/extensions.json
-.idea/
-.DS_Store
-*.suo
-*.ntvs*
-*.njsproj
-*.sln
-*.sw?
-
-# Environment and local config
-*.local
+# Environment
 .env
-.env.*
+.env.local
 
-# Claude Code
+# Temporary files
+*.tmp
+*.temp
+.cache/
+
+# Backup files
+*.backup.*
+*.bak
+
+# AI assistants
 .claude/
-CLAUDE.md
+.deepseek/
+.cursor/
 
-# Plan files
-PLAN.md
-
-# OS files
-Thumbs.db
-Desktop.ini
+# macOS
 ._*
-
-# Build resources (generated)
-build/
-
-# Development documentation (keep only user-facing docs)
-CONTINUOUS_OPTIMIZATION_COMPLETED.md
-EDITOR_TOOLBAR_OPTIMIZATION.md
-FEATURE_PLAN.md
-FEATURE_TODO.md
-FILE_LIST_OPTIMIZATION.md
-FINAL_REFACTORING_SUMMARY.md
-FIRST_PRIORITY_COMPLETED.md
-FIRST_PRIORITY_PROGRESS.md
-FIXES_COMPLETED.md
-HOOKS_OPTIMIZATION_SUMMARY.md
-INSTALL_REMARK_GFM.md
-NEW_FEATURES_SUMMARY.md
-REFACTORING_PROGRESS.md
-REFACTORING_SUMMARY.md
-REMOVE_ABOUT_MODAL_SUMMARY.md
-SIDEBAR_OPTIMIZATION_SUMMARY.md
-TABLE_FIX_SUMMARY.md
-TABLE_RENDERING_FIX.md
-TABLE_TEST.md
-TEST_REPORT.md
-THREE_PHASE_UI_OPTIMIZATION_COMPLETED.md
-TOOLBAR_BEFORE_AFTER.md
-TOOLBAR_OPTIMIZATION_SUMMARY.md
-UI_OPTIMIZATION_COMPLETED.md
-UI_OPTIMIZATION_TODO.md
-UI_REFACTORING_FINAL_SUMMARY.md
-UI_SIMPLIFICATION_COMPLETED.md
-RELEASE_SUMMARY.md
-DEPLOYMENT_COMPLETE.md

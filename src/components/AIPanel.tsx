@@ -16,6 +16,8 @@ interface AIPanelProps {
   onShowPreview: () => void;
 }
 
+import { AutoResizeTextarea } from './AutoResizeTextarea';
+
 export function AIPanel({
   isOpen,
   isDark,
@@ -36,27 +38,51 @@ export function AIPanel({
   if (!isOpen) return null;
 
   return (
-    <div className={`w-80 border-l flex flex-col transition-all duration-300 ease-out ${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}`}>
-      <div className={`flex items-center justify-end p-4 border-b ${isDark ? 'border-gray-700' : 'border-gray-200'}`}>
+    <div className={`w-96 border-l flex flex-col transition-all duration-300 ease-out shadow-2xl ${isDark ? 'bg-gray-900 border-gray-800' : 'bg-white border-gray-200'}`}>
+      <div className={`flex items-center justify-between px-6 py-4 border-b ${isDark ? 'border-gray-800 bg-gray-900' : 'border-gray-200 bg-gray-50'}`}>
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-xl flex items-center justify-center shadow-lg">
+            <svg className="w-5 h-5 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+            </svg>
+          </div>
+          <div>
+            <h3 className={`text-sm font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>AI 助手</h3>
+            <p className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>智能优化排版</p>
+          </div>
+        </div>
         <button
           onClick={onClose}
-          className={`p-2 rounded-full transition-all duration-200 ${isDark ? 'hover:bg-gray-700 text-gray-400' : 'hover:bg-gray-100 text-gray-500'}`}
+          className={`p-2 rounded-xl transition-all duration-200 hover:scale-105 active:scale-95 ${isDark ? 'hover:bg-gray-700 text-gray-400 hover:text-white' : 'hover:bg-gray-100 text-gray-500 hover:text-gray-700'}`}
         >
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M6 18L18 6M6 6l12 12" />
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
           </svg>
         </button>
       </div>
 
-      <div className="flex-1 overflow-auto p-4 space-y-4">
+      <div className={`flex-1 overflow-auto p-6 space-y-4 ${isDark ? 'bg-gray-950' : 'bg-white'}`}>
         {messages.length === 0 && (
-          <div className={`text-center py-12 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
-            <div className="w-16 h-16 mx-auto mb-4 bg-gradient-to-br from-emerald-400 to-teal-600 rounded-2xl flex items-center justify-center">
-              <svg className="w-8 h-8 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+          <div className={`text-center py-16 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+            <div className="w-20 h-20 mx-auto mb-6 bg-gradient-to-br from-emerald-500 via-teal-500 to-cyan-600 rounded-3xl flex items-center justify-center shadow-2xl transform hover:scale-110 hover:rotate-3 transition-all duration-300">
+              <svg className="w-10 h-10 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
               </svg>
             </div>
-            <p className="text-sm">发送消息开始对话</p>
+            <h4 className={`text-base font-semibold mb-2 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+              开始对话
+            </h4>
+            <p className="text-sm mb-6">
+              发送消息让 AI 帮你优化文档
+            </p>
+            <div className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl ${isDark ? 'bg-gray-700' : 'bg-gray-100'}`}>
+              <svg className="w-4 h-4 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+              </svg>
+              <span className={`text-xs font-medium ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                由 AI 驱动
+              </span>
+            </div>
           </div>
         )}
         {messages.map((msg, i) => (
@@ -64,7 +90,7 @@ export function AIPanel({
             <div className={`max-w-[85%] px-4 py-3 rounded-2xl text-sm ${
               msg.role === 'user'
                 ? 'bg-gradient-to-r from-emerald-500 to-teal-600 text-white shadow-md'
-                : (isDark ? 'bg-gray-700 text-gray-100' : 'bg-gray-100 text-gray-800')
+                : (isDark ? 'bg-gray-800 text-gray-100 border border-gray-700' : 'bg-gray-100 text-gray-800')
             }`}>
               <div className={`font-medium text-xs mb-1 ${msg.role === 'user' ? 'text-white' : (isDark ? 'text-emerald-400' : 'text-emerald-600')}`}>
                 {msg.role === 'user' ? '你' : 'AI'}
@@ -96,7 +122,7 @@ export function AIPanel({
               </button>
             </div>
             <div
-              className={`p-4 rounded-2xl ${isDark ? 'bg-gray-700' : 'bg-gray-100'} whitespace-pre-wrap max-h-60 overflow-auto`}
+              className={`p-4 rounded-2xl border ${isDark ? 'bg-gray-900 border-gray-800 text-gray-200' : 'bg-gray-100 border-transparent'} whitespace-pre-wrap max-h-60 overflow-auto`}
               style={{ fontSize: `${previewZoom}%` }}
             >
               {pendingContent}
@@ -119,9 +145,9 @@ export function AIPanel({
         )}
       </div>
 
-      <div className={`p-4 border-t ${isDark ? 'border-gray-700' : 'border-gray-200'}`}>
+      <div className={`p-4 border-t ${isDark ? 'border-gray-800 bg-gray-900' : 'border-gray-200 bg-white'}`}>
         <div className="flex gap-3">
-          <textarea
+          <AutoResizeTextarea
             value={input}
             onChange={e => onInputChange(e.target.value)}
             onKeyDown={e => {
@@ -131,10 +157,11 @@ export function AIPanel({
               }
             }}
             placeholder="输入消息..."
-            className={`flex-1 px-4 py-3 text-sm rounded-2xl border resize-none focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all duration-200 ${
+            minRows={3}
+            maxRows={8}
+            className={`flex-1 px-4 py-3 text-sm rounded-2xl border focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all duration-200 ${
               isDark ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-500' : 'bg-gray-50 border-gray-200 text-gray-900 placeholder-gray-400'
             }`}
-            rows={3}
           />
         </div>
         <button
@@ -142,7 +169,7 @@ export function AIPanel({
           disabled={loading || !input.trim() || !hasApiKey || !hasActiveFile}
           className={`w-full mt-3 py-3 rounded-2xl text-sm font-medium transition-all duration-200 ${
             loading || !input.trim() || !hasApiKey || !hasActiveFile
-              ? (isDark ? 'bg-gray-700 text-gray-500' : 'bg-gray-100 text-gray-400')
+              ? (isDark ? 'bg-gray-700 text-gray-500 cursor-not-allowed' : 'bg-gray-100 text-gray-400 cursor-not-allowed')
               : 'bg-gradient-to-r from-emerald-500 to-teal-600 text-white hover:shadow-lg active:scale-[0.98]'
           }`}
         >

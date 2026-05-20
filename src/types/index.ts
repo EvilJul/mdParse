@@ -17,6 +17,7 @@ export interface AISettings {
 }
 
 export interface AIAdvancedSettings {
+  temperature?: number;
   systemPrompt: string;
 }
 

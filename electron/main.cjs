@@ -2,6 +2,7 @@ const { app, BrowserWindow, ipcMain, dialog, Menu } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const http = require('http');
+const net = require('net');
 const { spawn } = require('child_process');
 
 let mainWindow;
@@ -9,6 +10,30 @@ let viteProcess;
 
 const DEV_HOST = '127.0.0.1';
 const DEV_PORT = 5187;
+
+function findAvailablePort(startPort) {
+  return new Promise((resolve, reject) => {
+    const tryPort = (port) => {
+      const server = net.createServer();
+
+      server.once('error', (error) => {
+        if (error.code === 'EADDRINUSE') {
+          tryPort(port + 1);
+          return;
+        }
+        reject(error);
+      });
+
+      server.once('listening', () => {
+        server.close(() => resolve(port));
+      });
+
+      server.listen(port, DEV_HOST);
+    };
+
+    tryPort(startPort);
+  });
+}
 
 function canReachDevServer(port) {
   return new Promise((resolve) => {
@@ -25,7 +50,7 @@ function canReachDevServer(port) {
   });
 }
 
-function startViteDevServer() {
+function startViteDevServer(port) {
   if (viteProcess) {
     return;
   }
@@ -38,7 +63,7 @@ function startViteDevServer() {
   }
 
   const nodePath = process.env.npm_node_execpath || process.env.NODE || 'node';
-  viteProcess = spawn(nodePath, [viteScript, '--host', DEV_HOST, '--port', String(DEV_PORT), '--strictPort', '--clearScreen', 'false'], {
+  viteProcess = spawn(nodePath, [viteScript, '--host', DEV_HOST, '--port', String(port), '--strictPort', '--clearScreen', 'false'], {
     cwd: appPath,
     env: { ...process.env, BROWSER: 'none' },
     stdio: ['ignore', 'pipe', 'pipe'],
@@ -55,10 +80,12 @@ function startViteDevServer() {
 
 async function waitForDevServer(timeoutMs = 20000) {
   const deadline = Date.now() + timeoutMs;
-  startViteDevServer();
+  const port = await findAvailablePort(DEV_PORT);
+  startViteDevServer(port);
+
   while (Date.now() < deadline) {
-    if (await canReachDevServer(DEV_PORT)) {
-      return DEV_PORT;
+    if (await canReachDevServer(port)) {
+      return port;
     }
     await new Promise((resolve) => setTimeout(resolve, 300));
   }
