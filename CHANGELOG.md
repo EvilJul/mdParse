@@ -7,6 +7,40 @@
 
 ---
 
+## [0.4.0] - 2026-06-28
+
+### 🎉 重大更新 - WYSIWYG 版本
+
+从 CodeMirror 6 迁移到 `contentEditable` 方案，实现 Typora 风格的所见即所得编辑体验。
+
+### ✨ 新增
+
+#### WYSIWYG 编辑器
+- **contentEditable 方案** — 移除 CM6，改用 `contentEditable` + `marked` + `turndown` 实现富文本渲染
+- **实时 WYSIWYG** — Markdown 实时渲染为 GitHub 风格 HTML，编辑即所见
+- **工具栏重构** — 所有格式化操作改用 `execCommand`（Bold / Italic / Headings / Lists / Code / Blockquote 等）
+- **键盘快捷键** — Ctrl+B / I / K 等直接作用于富文本
+- **粘贴过滤** — 粘贴时自动转纯文本，保持 Markdown 语义
+
+#### 主题系统修复
+- **暗色模式** — 修复 `:root` `--color-text` 在暗色下仍为黑色的根本问题
+- **CSS 变量覆盖** — `html.dark` 下自动切换所有文本/背景/边框变量
+- **编辑器同步** — 主题切换时强制重建 `<style>` 确保渲染颜色即时更新
+
+#### 清理与精简
+- **删除 AI 相关代码** — 移除 AIPanel、AIPreviewModal、useAI、apiHelpers、encryption 等
+- **删除过时组件** — MarkdownViewer、SearchReplace、FileTabs、FileContextMenu 等
+- **删除过时文档** — OPTIMIZATION.md、DEEP_OPTIMIZATION_COMPLETE.md、DESIGN_GUIDE.md、DESIGN_SYSTEM_GUIDE.md
+
+### 🔧 技术变更
+
+- **核心编辑器**: CodeMirror 6 → `contentEditable` + `marked` + `turndown`
+- **新增依赖**: `marked`（Markdown → HTML）、`turndown`（HTML → Markdown）
+- **移除依赖**: `@codemirror/*` 相关包（保留在 package.json 但不再使用）
+- **状态同步**: 使用 `isLocalSync` 标志避免本地编辑后不必要的重渲染
+
+---
+
 ## [0.3.0] - 2026-05-20
 
 ### 🎉 重大更新 - 深度优化版本

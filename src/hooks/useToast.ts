@@ -29,10 +29,6 @@ export function useToast() {
     return addToast('error', message, duration);
   }, [addToast]);
 
-  const warning = useCallback((message: string, duration?: number) => {
-    return addToast('warning', message, duration);
-  }, [addToast]);
-
   const info = useCallback((message: string, duration?: number) => {
     return addToast('info', message, duration);
   }, [addToast]);
@@ -43,7 +39,6 @@ export function useToast() {
     removeToast,
     success,
     error,
-    warning,
-    info
+    info,
   };
 }

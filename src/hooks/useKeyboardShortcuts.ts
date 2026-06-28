@@ -8,7 +8,6 @@ interface KeyboardShortcutsOptions {
   onOpenFolder: () => void;
   onCloseFile: () => void;
   onToggleTheme: () => void;
-  onShowSearch: () => void;
   onShowShortcuts: () => void;
   onInsertBold?: () => void;
   onInsertItalic?: () => void;
@@ -21,7 +20,6 @@ interface KeyboardShortcutsOptions {
 export function useKeyboardShortcuts(options: KeyboardShortcutsOptions) {
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // 如果在输入框中，只允许 Escape 键
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
         return;
       }
@@ -54,11 +52,6 @@ export function useKeyboardShortcuts(options: KeyboardShortcutsOptions) {
         case 'w':
           e.preventDefault();
           options.onCloseFile();
-          break;
-        case 'f':
-        case 'h':
-          e.preventDefault();
-          options.onShowSearch();
           break;
         case 't':
           if (e.shiftKey) {

@@ -1,17 +1,14 @@
 import { useState, useCallback, useEffect, lazy } from 'react';
-import { AppProvider, useAppContext } from './contexts/AppContext';
+import { FileProvider, useFileContext } from './contexts/FileContext';
+import { ThemeProvider, useThemeContext } from './contexts/ThemeContext';
+import { UISettingsProvider, useUISettingsContext } from './contexts/UISettingsContext';
 import { useFileOperations } from './hooks/useFileOperations';
 import { useFolderOperations } from './hooks/useFolderOperations';
-import { useAIOperations } from './hooks/useAIOperations';
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
-import { useTheme } from './hooks/useTheme';
-import { useSidebar } from './hooks/useSidebar';
-import { useModals } from './hooks/useModals';
 import { useAutoSave } from './hooks/useAutoSave';
 import { useToast } from './hooks/useToast';
 import { isMac } from './utils/helpers';
 
-// 核心组件 - 立即加载
 import { FileUploader } from './components/FileUploader';
 import { MarkdownEditor } from './components/MarkdownEditor';
 import { MarkdownContent } from './components/MarkdownContent';
@@ -21,14 +18,10 @@ import { SuspenseWrapper } from './components/LoadingSpinner';
 import { MARKDOWN_GUIDE } from './data/markdownGuide';
 import { SHORTCUTS } from './constants/shortcuts';
 
-// 大型组件 - 懒加载
-const AIPanel = lazy(() => import('./components/AIPanel').then(m => ({ default: m.AIPanel })));
-const SearchReplace = lazy(() => import('./components/SearchReplace').then(m => ({ default: m.SearchReplace })));
 const SettingsModal = lazy(() => import('./components/modals/SettingsModal').then(m => ({ default: m.SettingsModal })));
 const NewFileDialog = lazy(() => import('./components/modals/NewFileDialog').then(m => ({ default: m.NewFileDialog })));
 const ConfirmDialog = lazy(() => import('./components/modals/ConfirmDialog').then(m => ({ default: m.ConfirmDialog })));
 
-// Electron API 类型声明
 declare global {
   interface Window {
     electronAPI?: {
@@ -44,7 +37,6 @@ declare global {
       onMenuSaveFile: (callback: () => void) => () => void;
       onMenuSaveAsFile: (callback: () => void) => () => void;
       onMenuOpenFolder: (callback: () => void) => () => void;
-      onMenuOpenAISettings: (callback: () => void) => () => void;
       onMenuOpenSettings: (callback: () => void) => () => void;
       onMenuOpenGuide: (callback: () => void) => () => void;
       onMenuOpenShortcuts: (callback: () => void) => () => void;
@@ -60,26 +52,25 @@ function AppContent() {
     setCurrentTab,
     folderPath,
     folderFiles,
-    aiSettings,
-    aiAdvancedSettings,
-    setAiSettings,
-    setAiAdvancedSettings
-  } = useAppContext();
+    setActiveFile,
+    removeFile
+  } = useFileContext();
 
-  // Custom hooks
-  const { theme, setTheme, fontSize, setFontSize, toggleTheme, isDark } = useTheme();
-  const { showFileSidebar, setShowFileSidebar, sidebarWidth, startDragging } = useSidebar();
-  const toast = useToast();
+  const { theme, fontSize, setTheme, setFontSize, toggleTheme, isDark } = useThemeContext();
+
   const {
+    showFileSidebar, setShowFileSidebar,
+    sidebarWidth, startDragging,
     showNewFileDialog, setShowNewFileDialog,
     showShortcuts, setShowShortcuts,
     showGuideModal, setShowGuideModal,
     showSettingsModal, setShowSettingsModal,
-    showAIPanel, setShowAIPanel,
-    closeConfirmDialog, setCloseConfirmDialog
-  } = useModals();
+    closeConfirmDialog, setCloseConfirmDialog,
+    contextMenu, setContextMenu
+  } = useUISettingsContext();
 
-  // File operations
+  const toast = useToast();
+
   const {
     createNewFile,
     openFile,
@@ -91,7 +82,6 @@ function AppContent() {
     getActiveFile
   } = useFileOperations();
 
-  // Folder operations
   const {
     openFolder,
     closeFolder,
@@ -100,20 +90,6 @@ function AppContent() {
     deleteFolderFile
   } = useFolderOperations();
 
-  // AI operations
-  const {
-    aiInput,
-    aiLoading,
-    setAiInput,
-    getCurrentMessages,
-    getCurrentPendingContent,
-    submitAIRequest,
-    applyAIContent,
-    dismissAIContent
-  } = useAIOperations();
-
-  // Local state
-  const [showSearchReplace, setShowSearchReplace] = useState(false);
   const [newFileName, setNewFileName] = useState('');
   const [fileSearchQuery] = useState('');
   const [renamingFile, setRenamingFile] = useState<{ name: string; path: string } | null>(null);
@@ -121,13 +97,9 @@ function AppContent() {
   const [showRenameDialog, setShowRenameDialog] = useState(false);
   const [renameTarget, setRenameTarget] = useState<{ name: string; path: string } | null>(null);
   const [isSaving, setIsSaving] = useState(false);
-  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; file: { name: string; path: string } } | null>(null);
 
   const activeFile = getActiveFile();
-  const aiMessages = getCurrentMessages();
-  const pendingContent = getCurrentPendingContent();
 
-  // Auto-save
   const { isSaving: isAutoSaving } = useAutoSave({
     enabled: !!activeFile && activeFile.isDirty && !!activeFile.filePath,
     interval: 30000,
@@ -138,18 +110,17 @@ function AppContent() {
     }
   });
 
-  // Handlers
   const handleNewFile = useCallback(() => {
     setNewFileName('新文档.md');
     setShowNewFileDialog(true);
-  }, []);
+  }, [setShowNewFileDialog]);
 
   const confirmNewFile = useCallback(() => {
     const name = newFileName.trim() || '未命名.md';
     createNewFile(name);
     setShowNewFileDialog(false);
     setNewFileName('');
-  }, [newFileName, createNewFile]);
+  }, [newFileName, createNewFile, setShowNewFileDialog]);
 
   const handleSave = useCallback(async () => {
     if (!activeFile || isSaving) return;
@@ -191,17 +162,15 @@ function AppContent() {
   const handleFolderFileClick = useCallback(async (file: { name: string; path: string }) => {
     const existingFile = files.find(f => f.filePath === file.path);
     if (existingFile) {
-      // 文件已打开，直接切换
-      useAppContext().setActiveFile(existingFile.id);
+      setActiveFile(existingFile.id);
       setCurrentTab('editor');
     } else {
-      // 读取并打开文件
       const content = await readFileFromPath(file.path);
       if (content) {
         openFile(content, file.name, file.path);
       }
     }
-  }, [files, readFileFromPath, openFile, setCurrentTab]);
+  }, [files, readFileFromPath, openFile, setCurrentTab, setActiveFile]);
 
   const handleRenameSubmit = useCallback(async () => {
     if (!renameTarget || !renameValue || renameValue === renameTarget.name) {
@@ -232,7 +201,6 @@ function AppContent() {
     }
   }, [deleteFolderFile, toast]);
 
-  // Keyboard shortcuts
   useKeyboardShortcuts({
     onNewFile: handleNewFile,
     onSave: handleSave,
@@ -241,11 +209,9 @@ function AppContent() {
     onOpenFolder: openFolder,
     onCloseFile: handleCloseFile,
     onToggleTheme: toggleTheme,
-    onShowSearch: () => setShowSearchReplace(true),
     onShowShortcuts: () => setShowShortcuts(prev => !prev)
   });
 
-  // Electron menu callbacks
   useEffect(() => {
     if (!window.electronAPI) return;
 
@@ -273,8 +239,7 @@ function AppContent() {
   }, [handleNewFile, handleSave, handleSaveAs, openFolder, openFile, setShowSettingsModal, setShowGuideModal, setShowShortcuts]);
 
   return (
-    <div className={`h-screen flex flex-col ${isDark ? 'bg-gray-950 text-gray-100' : 'bg-gray-50 text-gray-900'}`}>
-      {/* Auto-save indicator */}
+    <div className={`h-screen flex flex-col ${isDark ? 'bg-surface-secondary-dark text-gray-100' : 'bg-surface-secondary text-text'}`}>
       {isAutoSaving && (
         <div className="fixed top-4 right-4 z-50 px-3 py-2 rounded-lg shadow-lg bg-emerald-500 text-white text-sm flex items-center gap-2">
           <svg className="w-4 h-4 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -284,25 +249,7 @@ function AppContent() {
         </div>
       )}
 
-      {/* Floating AI Button */}
-      {!showAIPanel && (
-        <button
-          onClick={() => setShowAIPanel(true)}
-          className="fixed bottom-8 right-8 w-12 h-12 rounded-full bg-gradient-to-br from-emerald-400 via-teal-500 to-cyan-600 text-white shadow-2xl hover:shadow-emerald-500 hover:scale-110 transition-all duration-300 flex items-center justify-center z-40"
-          title="AI 助手"
-        >
-          <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
-            <path d="M12 2a2 2 0 0 1 2 2c0 .74-.4 1.39-1 1.73V7h1a7 7 0 0 1 7 7h1a1 1 0 0 1 1 1v3a1 1 0 0 1-1 1h-1v1a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-1H2a1 1 0 0 1-1-1v-3a1 1 0 0 1 1-1h1a7 7 0 0 1 7-7h1V5.73c-.6-.34-1-.99-1-1.73a2 2 0 0 1 2-2z"/>
-            <circle cx="9" cy="10" r="1"/>
-            <circle cx="15" cy="10" r="1"/>
-            <path d="M8 14s1.5 2 4 2 4-2 4-2"/>
-          </svg>
-        </button>
-      )}
-
-      {/* Main content */}
       <div className="flex-1 flex overflow-hidden">
-        {/* File Sidebar */}
         <FileSidebar
           isOpen={showFileSidebar}
           isDark={isDark}
@@ -317,7 +264,7 @@ function AppContent() {
           onNewFile={handleNewFile}
           onFileClick={handleFolderFileClick}
           onOpenedFileClick={(id) => {
-            useAppContext().setActiveFile(id);
+            setActiveFile(id);
             setCurrentTab('editor');
           }}
           onCloseFile={(id) => {
@@ -348,60 +295,46 @@ function AppContent() {
           onCloseFolder={closeFolder}
         />
 
-        {/* Resize handle */}
         {showFileSidebar && (
           <div
-            className={`w-0.5 cursor-col-resize hover:bg-emerald-500 transition-colors duration-200 ${isDark ? 'bg-gray-700' : 'bg-gray-200'}`}
+            className={`w-px cursor-col-resize hover:w-0.5 hover:bg-emerald-500 transition-all duration-150 ${isDark ? 'bg-border-dark' : 'bg-border'}`}
             onMouseDown={startDragging}
           />
         )}
 
-        {/* Toggle sidebar button */}
         {!showFileSidebar && (
           <button
             onClick={() => setShowFileSidebar(true)}
-            className={`absolute left-3 top-3 p-2.5 rounded-xl shadow-lg z-10 transition-all duration-300 hover:scale-110 ${isDark ? 'bg-gray-800 text-gray-400 hover:text-white' : 'bg-white text-gray-500 hover:text-gray-700'}`}
+            className={`fixed left-3 top-3 z-10 w-7 h-7 flex items-center justify-center rounded-md transition-colors ${
+              isDark
+                ? 'text-gray-500 hover:text-gray-300 hover:bg-sidebar-item-dark bg-sidebar-dark'
+                : 'text-gray-400 hover:text-gray-600 hover:bg-sidebar-item bg-sidebar'
+            } border ${isDark ? 'border-border-dark' : 'border-border'}`}
             title="显示文件侧边栏"
           >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h7" />
             </svg>
           </button>
         )}
 
-        {/* Main content area */}
-        <main className={`flex-1 overflow-hidden flex flex-col ${isDark ? 'bg-gray-950' : 'bg-gray-50'}`}>
-          <div className="flex-1 overflow-hidden p-2">
+        <main className={`flex-1 overflow-hidden flex flex-col ${isDark ? 'bg-surface-dark' : 'bg-surface'}`}>
+          <div className="flex-1 overflow-hidden">
             {files.length === 0 ? (
-              <div className={`min-h-full py-16 ${isDark ? 'bg-gray-950' : 'bg-gray-50'}`}>
-                <div className="text-center mb-10">
-                  <h1 className={`text-3xl font-bold mb-3 ${isDark ? 'text-white' : 'text-gray-900'}`}>Markdown 编辑器</h1>
-                  <p className={`text-lg ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>开始编辑你的 Markdown 文档</p>
+              <div className={`h-full flex flex-col items-center justify-center py-24 ${isDark ? 'bg-surface-dark' : 'bg-surface'}`}>
+                <div className="text-center mb-10 max-w-sm mx-auto px-4">
+                  <div className={`w-12 h-12 mx-auto mb-4 rounded-xl flex items-center justify-center ${isDark ? 'bg-sidebar-item-dark' : 'bg-sidebar'}`}>
+                    <svg className={`w-6 h-6 ${isDark ? 'text-gray-500' : 'text-gray-400'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M10 20l4-16m-4 16l-4-4m8 0l-4-4" />
+                    </svg>
+                  </div>
+                  <h1 className={`text-xl font-semibold mb-1.5 ${isDark ? 'text-gray-100' : 'text-text'}`}>Markdown 编辑器</h1>
+                  <p className={`text-xs ${isDark ? 'text-gray-500' : 'text-text-muted'}`}>开始编辑你的 Markdown 文档</p>
                 </div>
                 <FileUploader onFileLoaded={(content: string, name: string) => openFile(content, name)} theme={theme} />
               </div>
             ) : currentTab === 'editor' && activeFile ? (
-              <div className={`h-full relative ${isDark ? 'bg-gray-950' : 'bg-white'}`}>
-                <SuspenseWrapper fallback={null}>
-                  <SearchReplace
-                    isOpen={showSearchReplace}
-                    isDark={isDark}
-                    onClose={() => setShowSearchReplace(false)}
-                    onSearch={() => {}}
-                    onReplace={(query, replacement) => {
-                      if (activeFile) {
-                        const newContent = activeFile.content.replace(query, replacement);
-                        updateFileContent(activeFile.id, newContent);
-                      }
-                    }}
-                    onReplaceAll={(query, replacement) => {
-                      if (activeFile) {
-                        const newContent = activeFile.content.replaceAll(query, replacement);
-                        updateFileContent(activeFile.id, newContent);
-                      }
-                    }}
-                  />
-                </SuspenseWrapper>
+              <div className="h-full relative">
                 <MarkdownEditor
                   content={activeFile.content}
                   fileName={activeFile.name}
@@ -411,7 +344,6 @@ function AppContent() {
                   onRename={(newName) => renameFile(activeFile.id, newName)}
                   theme={theme}
                   isMac={isMac}
-                  fontSize={fontSize}
                 />
               </div>
             ) : currentTab === 'guide' ? (
@@ -423,30 +355,8 @@ function AppContent() {
             ) : null}
           </div>
         </main>
-
-        {/* AI Panel */}
-        <SuspenseWrapper fallback={null}>
-          <AIPanel
-            isOpen={showAIPanel}
-            isDark={isDark}
-            messages={aiMessages}
-            input={aiInput}
-            loading={aiLoading}
-            pendingContent={pendingContent}
-            previewZoom={100}
-            hasActiveFile={!!activeFile}
-            hasApiKey={!!aiSettings.apiKey}
-            onClose={() => setShowAIPanel(false)}
-            onInputChange={setAiInput}
-            onSubmit={submitAIRequest}
-            onApplyContent={applyAIContent}
-            onDismissContent={dismissAIContent}
-            onShowPreview={() => {}}
-          />
-        </SuspenseWrapper>
       </div>
 
-      {/* Modals */}
       <SuspenseWrapper fallback={null}>
         <NewFileDialog
           isOpen={showNewFileDialog}
@@ -462,20 +372,20 @@ function AppContent() {
       </SuspenseWrapper>
 
       {showGuideModal && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50" onClick={() => setShowGuideModal(false)}>
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50" onClick={() => setShowGuideModal(false)}>
           <div
-            className={`w-[800px] max-h-[80vh] rounded-2xl shadow-2xl overflow-hidden border ${isDark ? 'bg-gray-900 border-gray-800' : 'bg-white border-gray-200'}`}
+            className={`w-[720px] max-h-[80vh] overflow-hidden border animate-in-scale ${isDark ? 'bg-panel-dark border-border-dark shadow-xl' : 'bg-panel border-border shadow-xl'}`}
             onClick={e => e.stopPropagation()}
           >
-            <div className={`flex items-center justify-between px-6 py-4 border-b ${isDark ? 'border-gray-800' : 'border-gray-200'}`}>
-              <h2 className={`text-lg font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>Markdown 语法指南</h2>
-              <button onClick={() => setShowGuideModal(false)} className={`p-2 rounded-xl ${isDark ? 'hover:bg-gray-700 text-gray-400' : 'hover:bg-gray-100 text-gray-500'}`}>
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div className={`flex items-center justify-between px-4 h-11 border-b ${isDark ? 'border-border-dark' : 'border-border'}`}>
+              <h2 className={`text-xs font-semibold ${isDark ? 'text-gray-200' : 'text-text'}`}>Markdown 语法指南</h2>
+              <button onClick={() => setShowGuideModal(false)} className={`p-1 rounded-sm ${isDark ? 'hover:bg-sidebar-item-dark text-gray-500' : 'hover:bg-sidebar text-text-muted'}`}>
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                 </svg>
               </button>
             </div>
-            <div className={`h-[60vh] overflow-auto p-6 ${isDark ? 'bg-gray-950' : 'bg-white'}`}>
+            <div className={`max-h-[65vh] overflow-auto p-6 ${isDark ? 'bg-panel-dark' : 'bg-panel'}`}>
               <MarkdownContent content={MARKDOWN_GUIDE} theme={theme} />
             </div>
           </div>
@@ -488,35 +398,31 @@ function AppContent() {
           onClose={() => setShowSettingsModal(false)}
           theme={theme}
           fontSize={fontSize}
-          aiSettings={aiSettings}
-          aiAdvancedSettings={aiAdvancedSettings}
           onThemeChange={setTheme}
           onFontSizeChange={setFontSize}
-          onAiSettingsChange={setAiSettings}
-          onAiAdvancedSettingsChange={setAiAdvancedSettings}
         />
       </SuspenseWrapper>
 
       {showShortcuts && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50" onClick={() => setShowShortcuts(false)}>
-          <div className={`rounded-xl p-6 w-80 max-h-[80vh] overflow-auto border ${isDark ? 'bg-gray-900 border-gray-800' : 'bg-white border-gray-200'} shadow-xl`} onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between mb-4">
-              <h3 className={`text-lg font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>快捷键</h3>
-              <button onClick={() => setShowShortcuts(false)} className={`${isDark ? 'text-gray-400' : 'text-gray-500'} hover:text-gray-700`}>
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50" onClick={() => setShowShortcuts(false)}>
+          <div className={`p-5 w-72 max-h-[80vh] overflow-auto border animate-in-scale ${isDark ? 'bg-panel-dark border-border-dark shadow-xl' : 'bg-panel border-border shadow-xl'}`} onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-3">
+              <h3 className={`text-xs font-semibold ${isDark ? 'text-gray-200' : 'text-text'}`}>快捷键</h3>
+              <button onClick={() => setShowShortcuts(false)} className={`p-0.5 rounded-sm ${isDark ? 'hover:bg-sidebar-item-dark text-gray-500' : 'hover:bg-sidebar text-text-muted'}`}>
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                 </svg>
               </button>
             </div>
-            <div className="space-y-2">
+            <div className="space-y-1">
               {SHORTCUTS.map((shortcut, i) => (
                 shortcut.keys ? (
-                  <div key={i} className="flex justify-between items-center">
-                    <span className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>{shortcut.action}</span>
-                    <kbd className={`px-2 py-1 text-xs rounded ${isDark ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-600'}`}>{shortcut.keys}</kbd>
+                  <div key={i} className="flex justify-between items-center py-0.5">
+                    <span className={`text-[11px] ${isDark ? 'text-gray-400' : 'text-text-muted'}`}>{shortcut.action}</span>
+                    <kbd className={`px-1.5 py-0.5 text-[10px] rounded-sm ${isDark ? 'bg-sidebar-item-dark text-gray-500' : 'bg-sidebar text-text-muted'}`}>{shortcut.keys}</kbd>
                   </div>
                 ) : (
-                  <div key={i} className={`border-t my-2 ${isDark ? 'border-gray-800' : 'border-gray-200'}`} />
+                  <div key={i} className={`border-t my-1 ${isDark ? 'border-border-dark' : 'border-border'}`} />
                 )
               ))}
             </div>
@@ -537,8 +443,7 @@ function AppContent() {
           }}
           onDiscardAndClose={() => {
             if (closeConfirmDialog.fileId) {
-              // Force close without saving
-              useAppContext().removeFile(closeConfirmDialog.fileId);
+              removeFile(closeConfirmDialog.fileId);
             }
             setCloseConfirmDialog({ show: false, fileId: null });
           }}
@@ -546,11 +451,14 @@ function AppContent() {
         />
       </SuspenseWrapper>
 
-      {/* Context Menu */}
       {contextMenu && (
         <>
           <div
-            className={`fixed z-50 py-1 rounded-lg shadow-xl border min-w-[140px] ${isDark ? 'bg-gray-900 border-gray-800' : 'bg-white border-gray-200'}`}
+            className={`fixed z-50 py-0.5 border min-w-[120px] animate-in-scale ${
+              isDark
+                ? 'bg-panel-dark border-border-dark shadow-lg'
+                : 'bg-panel border-border shadow-lg'
+            }`}
             style={{
               left: `${Math.min(contextMenu.x, window.innerWidth - 160)}px`,
               top: `${Math.min(contextMenu.y, window.innerHeight - 100)}px`
@@ -563,7 +471,7 @@ function AppContent() {
                 setShowRenameDialog(true);
                 setContextMenu(null);
               }}
-              className={`w-full px-4 py-2 text-sm text-left ${isDark ? 'text-gray-300 hover:bg-gray-800' : 'text-gray-700 hover:bg-gray-100'}`}
+              className={`w-full px-3 py-1.5 text-[11px] text-left ${isDark ? 'text-gray-400 hover:bg-sidebar-item-dark' : 'text-text-muted hover:bg-sidebar'}`}
             >
               重命名
             </button>
@@ -572,7 +480,7 @@ function AppContent() {
                 handleDeleteFile(contextMenu.file);
                 setContextMenu(null);
               }}
-              className={`w-full px-4 py-2 text-sm text-left ${isDark ? 'text-red-300 hover:bg-red-950' : 'text-red-600 hover:bg-red-50'}`}
+              className={`w-full px-3 py-1.5 text-[11px] text-left ${isDark ? 'text-red-400 hover:bg-sidebar-item-dark' : 'text-red-600 hover:bg-sidebar'}`}
             >
               删除
             </button>
@@ -581,11 +489,10 @@ function AppContent() {
         </>
       )}
 
-      {/* Rename Dialog */}
       {showRenameDialog && renameTarget && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50" onClick={() => setShowRenameDialog(false)}>
-          <div className={`rounded-xl p-6 w-80 ${isDark ? 'bg-gray-900' : 'bg-white'} shadow-xl`} onClick={e => e.stopPropagation()}>
-            <h3 className={`text-lg font-semibold mb-4 ${isDark ? 'text-white' : 'text-gray-900'}`}>重命名文件</h3>
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50" onClick={() => setShowRenameDialog(false)}>
+          <div className={`p-5 w-72 border animate-in-scale ${isDark ? 'bg-panel-dark border-border-dark shadow-xl' : 'bg-panel border-border shadow-xl'}`} onClick={e => e.stopPropagation()}>
+            <h3 className={`text-xs font-semibold mb-3 ${isDark ? 'text-gray-200' : 'text-text'}`}>重命名</h3>
             <input
               type="text"
               value={renameValue}
@@ -594,19 +501,19 @@ function AppContent() {
                 if (e.key === 'Enter') handleRenameSubmit();
                 if (e.key === 'Escape') setShowRenameDialog(false);
               }}
-              className={`w-full px-3 py-2 border rounded-lg mb-4 ${isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-900'}`}
+              className={`w-full px-2.5 py-1.5 text-xs mb-3 focus:outline-none focus:ring-1 focus:ring-emerald-500 ${isDark ? 'bg-sidebar-item-dark border border-border-dark text-gray-200' : 'bg-white border border-border-strong text-text'}`}
               autoFocus
             />
-            <div className="flex justify-end gap-2">
+            <div className="flex justify-end gap-1.5">
               <button
                 onClick={() => setShowRenameDialog(false)}
-                className={`px-4 py-2 rounded-lg ${isDark ? 'text-gray-300 hover:bg-gray-700' : 'text-gray-700 hover:bg-gray-100'}`}
+                className={`px-2.5 py-1.5 text-[11px] rounded-sm ${isDark ? 'text-gray-400 hover:bg-sidebar-item-dark' : 'text-text-muted hover:bg-sidebar'}`}
               >
                 取消
               </button>
               <button
                 onClick={handleRenameSubmit}
-                className="px-4 py-2 rounded-lg bg-emerald-500 text-white hover:bg-emerald-600"
+                className="px-2.5 py-1.5 text-[11px] rounded-sm bg-emerald-500 hover:bg-emerald-600 text-white"
               >
                 确定
               </button>
@@ -622,9 +529,13 @@ function AppContent() {
 
 function App() {
   return (
-    <AppProvider>
-      <AppContent />
-    </AppProvider>
+    <ThemeProvider>
+      <FileProvider>
+        <UISettingsProvider>
+          <AppContent />
+        </UISettingsProvider>
+      </FileProvider>
+    </ThemeProvider>
   );
 }
 

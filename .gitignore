@@ -40,5 +40,16 @@ npm-debug.log*
 .deepseek/
 .cursor/
 
+# Agent / tool config directories
+.codegraph/
+.gbrain/
+.gstack/
+.opencode/
+.playwright-mcp/
+openspec/
+
+# Screenshots / render tests
+*.png
+
 # macOS
 ._*

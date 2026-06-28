@@ -20,9 +20,9 @@ export function NewFileDialog({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50">
-      <div className={`rounded-xl p-6 w-96 ${isDark ? 'bg-gray-900' : 'bg-white'} shadow-xl dialog-animate`}>
-        <h3 className={`text-lg font-semibold mb-4 ${isDark ? 'text-white' : 'text-gray-900'}`}>新建文件</h3>
+    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
+      <div className={`p-5 w-72 border animate-in-scale ${isDark ? 'bg-panel-dark border-border-dark shadow-xl' : 'bg-panel border-border shadow-xl'}`}>
+        <h3 className={`text-xs font-semibold mb-3 ${isDark ? 'text-gray-200' : 'text-text'}`}>新建文件</h3>
         <input
           type="text"
           value={fileName}
@@ -33,23 +33,13 @@ export function NewFileDialog({
           }}
           placeholder="输入文件名"
           autoFocus
-          className={`w-full px-4 py-2 border rounded-2xl mb-4 ${
-            isDark ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' : 'bg-white border-gray-200 text-gray-900'
+          className={`w-full px-2.5 py-1.5 text-xs mb-3 focus:outline-none focus:ring-1 focus:ring-emerald-500 ${
+            isDark ? 'bg-sidebar-item-dark border border-border-dark text-gray-200 placeholder-gray-500' : 'bg-white border border-border-strong text-text placeholder-text-muted'
           }`}
         />
-        <div className="flex justify-end gap-2">
-          <button
-            onClick={onCancel}
-            className={`px-4 py-2 rounded-2xl ${isDark ? 'text-gray-300 hover:bg-gray-700' : 'text-gray-600 hover:bg-gray-100'}`}
-          >
-            取消
-          </button>
-          <button
-            onClick={onConfirm}
-            className="px-4 py-2 bg-teal-500 text-white rounded-2xl hover:bg-teal-600"
-          >
-            创建
-          </button>
+        <div className="flex justify-end gap-1.5">
+          <button onClick={onCancel} className={`px-2.5 py-1.5 text-[11px] rounded-sm ${isDark ? 'text-gray-400 hover:bg-sidebar-item-dark' : 'text-text-muted hover:bg-sidebar'}`}>取消</button>
+          <button onClick={onConfirm} className="px-2.5 py-1.5 text-[11px] rounded-sm bg-emerald-500 hover:bg-emerald-600 text-white">创建</button>
         </div>
       </div>
     </div>

@@ -1,5 +1,5 @@
 import { useCallback } from 'react';
-import { useAppContext } from '../contexts/AppContext';
+import { useFileContext } from '../contexts/FileContext';
 import { generateFileId } from '../utils/helpers';
 
 export function useFolderOperations() {
@@ -14,7 +14,7 @@ export function useFolderOperations() {
     files,
     setActiveFile,
     setCurrentTab
-  } = useAppContext();
+  } = useFileContext();
 
   // 打开文件夹
   const openFolder = useCallback(async () => {

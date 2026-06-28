@@ -1,9 +1,10 @@
 interface MarkdownToolbarProps {
-  onInsert: (before: string, after?: string) => void;
+  onCommand: (cmd: string, value?: string) => void;
+  onInsertHTML?: (html: string) => void;
   isDark: boolean;
 }
 
-export function MarkdownToolbar({ onInsert, isDark }: MarkdownToolbarProps) {
+export function MarkdownToolbar({ onCommand, onInsertHTML, isDark }: MarkdownToolbarProps) {
   const tools = [
     {
       icon: (
@@ -13,7 +14,7 @@ export function MarkdownToolbar({ onInsert, isDark }: MarkdownToolbarProps) {
         </svg>
       ),
       label: '加粗',
-      action: () => onInsert('**', '**'),
+      action: () => onCommand('bold'),
       shortcut: 'Ctrl+B'
     },
     {
@@ -23,7 +24,7 @@ export function MarkdownToolbar({ onInsert, isDark }: MarkdownToolbarProps) {
         </svg>
       ),
       label: '斜体',
-      action: () => onInsert('*', '*'),
+      action: () => onCommand('italic'),
       shortcut: 'Ctrl+I'
     },
     {
@@ -33,7 +34,10 @@ export function MarkdownToolbar({ onInsert, isDark }: MarkdownToolbarProps) {
         </svg>
       ),
       label: '链接',
-      action: () => onInsert('[', '](url)'),
+      action: () => {
+        const url = window.prompt('链接地址:');
+        if (url) onCommand('createLink', url);
+      },
       shortcut: 'Ctrl+K'
     },
     {
@@ -43,7 +47,10 @@ export function MarkdownToolbar({ onInsert, isDark }: MarkdownToolbarProps) {
         </svg>
       ),
       label: '图片',
-      action: () => onInsert('![', '](url)'),
+      action: () => {
+        const url = window.prompt('图片地址:');
+        if (url) onInsertHTML?.(`<img src="${url}" alt="image" />`);
+      },
       shortcut: ''
     },
     {
@@ -53,7 +60,7 @@ export function MarkdownToolbar({ onInsert, isDark }: MarkdownToolbarProps) {
         </svg>
       ),
       label: '代码',
-      action: () => onInsert('`', '`'),
+      action: () => onInsertHTML?.('<code>代码</code>'),
       shortcut: 'Ctrl+`'
     },
     {
@@ -64,7 +71,9 @@ export function MarkdownToolbar({ onInsert, isDark }: MarkdownToolbarProps) {
         </svg>
       ),
       label: '表格',
-      action: () => onInsert('\n| 列1 | 列2 | 列3 |\n|-----|-----|-----|\n| 内容 | 内容 | 内容 |\n', ''),
+      action: () => onInsertHTML?.(
+        '<table><thead><tr><th>列1</th><th>列2</th><th>列3</th></tr></thead><tbody><tr><td>内容</td><td>内容</td><td>内容</td></tr></tbody></table>'
+      ),
       shortcut: ''
     },
     {
@@ -74,7 +83,7 @@ export function MarkdownToolbar({ onInsert, isDark }: MarkdownToolbarProps) {
         </svg>
       ),
       label: '无序列表',
-      action: () => onInsert('\n- ', ''),
+      action: () => onCommand('insertUnorderedList'),
       shortcut: ''
     },
     {
@@ -87,7 +96,7 @@ export function MarkdownToolbar({ onInsert, isDark }: MarkdownToolbarProps) {
         </svg>
       ),
       label: '有序列表',
-      action: () => onInsert('\n1. ', ''),
+      action: () => onCommand('insertOrderedList'),
       shortcut: ''
     },
     {
@@ -97,40 +106,40 @@ export function MarkdownToolbar({ onInsert, isDark }: MarkdownToolbarProps) {
         </svg>
       ),
       label: '引用',
-      action: () => onInsert('\n> ', ''),
+      action: () => onCommand('formatBlock', '<blockquote>'),
       shortcut: ''
     },
     {
       icon: <span className="text-lg font-bold">H1</span>,
       label: '标题1',
-      action: () => onInsert('\n# ', ''),
+      action: () => onCommand('formatBlock', '<h1>'),
       shortcut: 'Ctrl+1'
     },
     {
       icon: <span className="text-base font-bold">H2</span>,
       label: '标题2',
-      action: () => onInsert('\n## ', ''),
+      action: () => onCommand('formatBlock', '<h2>'),
       shortcut: 'Ctrl+2'
     },
     {
       icon: <span className="text-sm font-bold">H3</span>,
       label: '标题3',
-      action: () => onInsert('\n### ', ''),
+      action: () => onCommand('formatBlock', '<h3>'),
       shortcut: 'Ctrl+3'
     },
   ];
 
   return (
-    <div className={`flex items-center gap-1 px-3 py-2 border-b ${isDark ? 'bg-gray-800 border-gray-700' : 'bg-gray-50 border-gray-200'}`}>
-      <div className="flex items-center gap-0.5 flex-wrap">
+    <div className={`flex items-center gap-0.5 px-3 h-9 border-b flex-shrink-0 ${isDark ? 'bg-header-dark border-border-dark' : 'bg-header border-border'}`}>
+      <div className="flex items-center gap-0.5">
         {tools.map((tool, index) => (
           <button
             key={index}
             onClick={tool.action}
-            className={`p-2 rounded-lg transition-all duration-200 hover:scale-105 active:scale-95 ${
+            className={`w-7 h-7 flex items-center justify-center rounded-sm transition-colors ${
               isDark 
-                ? 'hover:bg-gray-700 text-gray-400 hover:text-white' 
-                : 'hover:bg-white text-gray-600 hover:text-gray-900 hover:shadow-sm'
+                ? 'text-gray-500 hover:text-gray-300 hover:bg-sidebar-item-dark' 
+                : 'text-text-muted hover:text-text-secondary hover:bg-sidebar'
             }`}
             title={`${tool.label}${tool.shortcut ? ` (${tool.shortcut})` : ''}`}
           >

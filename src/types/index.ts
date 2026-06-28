@@ -9,20 +9,4 @@ export interface FileState {
   filePath?: string;
 }
 
-export interface AISettings {
-  apiKey: string;
-  baseUrl: string;
-  model: string;
-  provider: 'openai' | 'deepseek' | 'custom';
-}
 
-export interface AIAdvancedSettings {
-  temperature?: number;
-  systemPrompt: string;
-}
-
-export interface ContextMenuState {
-  x: number;
-  y: number;
-  file: { name: string; path: string };
-}

@@ -1,10 +1,10 @@
 import { useCallback } from 'react';
-import { useAppContext } from '../contexts/AppContext';
+import { useFileContext } from '../contexts/FileContext';
 import { generateFileId } from '../utils/helpers';
 import type { FileState } from '../types';
 
 export function useFileOperations() {
-  const { addFile, updateFile, removeFile, files, activeFileId, setCurrentTab } = useAppContext();
+  const { addFile, updateFile, removeFile, files, activeFileId, setCurrentTab } = useFileContext();
 
   // 创建新文件
   const createNewFile = useCallback((name: string) => {
@@ -31,27 +31,6 @@ export function useFileOperations() {
     addFile(newFile);
     setCurrentTab('editor');
   }, [addFile, setCurrentTab]);
-
-  // 保存文件
-  const saveFile = useCallback(async (fileId: string) => {
-    const file = files.find(f => f.id === fileId);
-    if (!file) return { success: false };
-
-    // 如果有文件路径，直接保存
-    if (file.filePath && window.electronAPI) {
-      const result = await window.electronAPI.saveDirectFile({
-        content: file.content,
-        filePath: file.filePath
-      });
-      if (result.success) {
-        updateFile(fileId, { isDirty: false });
-        return { success: true };
-      }
-    }
-
-    // 否则显示保存对话框
-    return await saveFileAs(fileId);
-  }, [files, updateFile]);
 
   // 另存为
   const saveFileAs = useCallback(async (fileId: string) => {
@@ -85,6 +64,25 @@ export function useFileOperations() {
     updateFile(fileId, { isDirty: false });
     return { success: true };
   }, [files, updateFile]);
+
+  // 保存文件
+  const saveFile = useCallback(async (fileId: string) => {
+    const file = files.find(f => f.id === fileId);
+    if (!file) return { success: false };
+
+    if (file.filePath && window.electronAPI) {
+      const result = await window.electronAPI.saveDirectFile({
+        content: file.content,
+        filePath: file.filePath
+      });
+      if (result.success) {
+        updateFile(fileId, { isDirty: false });
+        return { success: true };
+      }
+    }
+
+    return await saveFileAs(fileId);
+  }, [files, updateFile, saveFileAs]);
 
   // 关闭文件
   const closeFile = useCallback((fileId: string) => {

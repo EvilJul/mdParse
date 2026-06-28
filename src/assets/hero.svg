@@ -1,0 +1,134 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" width="1200" height="630">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#0c0e12"/>
+      <stop offset="100%" stop-color="#181b22"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#14b8a6"/>
+      <stop offset="100%" stop-color="#10b981"/>
+    </linearGradient>
+    <filter id="glow">
+      <feGaussianBlur stdDeviation="3" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <clipPath id="windowClip">
+      <rect x="60" y="60" width="1080" height="510" rx="12"/>
+    </clipPath>
+  </defs>
+
+  <!-- Background -->
+  <rect width="1200" height="630" fill="url(#bg)"/>
+
+  <!-- Grid pattern -->
+  <g opacity="0.03">
+    <line x1="0" y1="100" x2="1200" y2="100" stroke="white" stroke-width="0.5"/>
+    <line x1="0" y1="200" x2="1200" y2="200" stroke="white" stroke-width="0.5"/>
+    <line x1="0" y1="300" x2="1200" y2="300" stroke="white" stroke-width="0.5"/>
+    <line x1="0" y1="400" x2="1200" y2="400" stroke="white" stroke-width="0.5"/>
+    <line x1="0" y1="500" x2="1200" y2="500" stroke="white" stroke-width="0.5"/>
+  </g>
+
+  <!-- Window frame -->
+  <rect x="60" y="60" width="1080" height="510" rx="12" fill="#1c1f26" stroke="#282c35" stroke-width="1"/>
+
+  <!-- Title bar -->
+  <rect x="60" y="60" width="1080" height="40" rx="12" fill="#14161b"/>
+  <rect x="60" y="80" width="1080" height="20" fill="#14161b"/>
+
+  <!-- Window controls -->
+  <circle cx="90" cy="80" r="6" fill="#ef4444" opacity="0.8"/>
+  <circle cx="110" cy="80" r="6" fill="#f59e0b" opacity="0.8"/>
+  <circle cx="130" cy="80" r="6" fill="#10b981" opacity="0.8"/>
+
+  <!-- Title text -->
+  <text x="190" y="85" fill="#6b7280" font-family="system-ui, sans-serif" font-size="13" font-weight="500">mdParse — Markdown WYSIWYG Editor</text>
+
+  <!-- App chrome -->
+  <!-- Sidebar -->
+  <rect x="60" y="100" width="220" height="470" fill="#0f1116"/>
+
+  <!-- Sidebar items -->
+  <rect x="75" y="120" width="190" height="28" rx="4" fill="#191c23"/>
+  <text x="82" y="139" fill="#9ca3af" font-family="system-ui, sans-serif" font-size="12">📄 README.md</text>
+
+  <rect x="75" y="154" width="190" height="28" rx="4" fill="none"/>
+  <text x="82" y="173" fill="#6b7280" font-family="system-ui, sans-serif" font-size="12">📄 guide.md</text>
+
+  <rect x="75" y="188" width="190" height="28" rx="4" fill="none"/>
+  <text x="82" y="207" fill="#6b7280" font-family="system-ui, sans-serif" font-size="12">📄 changelog.md</text>
+
+  <!-- Toolbar -->
+  <rect x="280" y="100" width="860" height="36" fill="#14161b"/>
+  <line x1="280" y1="136" x2="1140" y2="136" stroke="#282c35" stroke-width="1"/>
+
+  <!-- Toolbar buttons -->
+  <g fill="#6b7280">
+    <rect x="290" y="108" width="24" height="20" rx="3"/>
+    <text x="294" y="123" font-size="11" font-weight="700" fill="#6b7280">B</text>
+    <rect x="318" y="108" width="24" height="20" rx="3"/>
+    <text x="321" y="123" font-size="11" font-style="italic" fill="#6b7280">I</text>
+    <rect x="346" y="108" width="24" height="20" rx="3"/>
+    <text x="350" y="123" font-size="10" text-decoration="underline" fill="#6b7280">U</text>
+    <rect x="374" y="108" width="28" height="20" rx="3"/>
+    <text x="379" y="123" font-size="11" fill="#6b7280">H1</text>
+    <rect x="406" y="108" width="28" height="20" rx="3"/>
+    <text x="411" y="123" font-size="10" fill="#6b7280">H2</text>
+    <rect x="438" y="108" width="28" height="20" rx="3"/>
+    <text x="443" y="123" font-size="9" fill="#6b7280">H3</text>
+  </g>
+
+  <!-- Editor area -->
+  <rect x="280" y="136" width="860" height="434" fill="#181b22"/>
+
+  <!-- Editor content - rendered markdown -->
+  <g clip-path="url(#windowClip)">
+    <!-- Rendered H1 heading -->
+    <text x="300" y="190" fill="#f9fafb" font-family="system-ui, sans-serif" font-size="32" font-weight="700">Welcome to mdParse</text>
+    <line x1="300" y1="198" x2="600" y2="198" stroke="#374151" stroke-width="2"/>
+
+    <!-- Paragraph -->
+    <text x="300" y="230" fill="#d1d5db" font-family="system-ui, sans-serif" font-size="14" font-weight="400">A minimalist <tspan fill="#5eead4">WYSIWYG</tspan> markdown editor built with Electron, featuring</text>
+    <text x="300" y="252" fill="#d1d5db" font-family="system-ui, sans-serif" font-size="14">real-time rich text rendering — just like <tspan fill="#14b8a6">Typora</tspan>.</text>
+
+    <!-- H2 heading -->
+    <text x="300" y="300" fill="#f3f4f6" font-family="system-ui, sans-serif" font-size="24" font-weight="700">Features</text>
+
+    <!-- Bullet list -->
+    <text x="300" y="332" fill="#14b8a6" font-family="system-ui, sans-serif" font-size="14">✦</text>
+    <text x="320" y="332" fill="#d1d5db" font-family="system-ui, sans-serif" font-size="14">Real-time <tspan font-weight="700" fill="#f9fafb">WYSIWYG</tspan> editing — what you see is what you mean</text>
+
+    <text x="300" y="356" fill="#14b8a6" font-family="system-ui, sans-serif" font-size="14">✦</text>
+    <text x="320" y="356" fill="#d1d5db" font-family="system-ui, sans-serif" font-size="14">Full GFM support: tables, task lists, code blocks, strikethrough</text>
+
+    <text x="300" y="380" fill="#14b8a6" font-family="system-ui, sans-serif" font-size="14">✦</text>
+    <text x="320" y="380" fill="#d1d5db" font-family="system-ui, sans-serif" font-size="14">Light &amp; Dark themes, keyboard shortcuts, auto-save</text>
+
+    <!-- Code block -->
+    <rect x="300" y="405" width="550" height="90" rx="6" fill="#111827" stroke="#374151" stroke-width="1"/>
+    <rect x="300" y="405" width="550" height="26" rx="6" fill="#1f2937"/>
+    <text x="310" y="422" fill="#6b7280" font-family="system-ui, sans-serif" font-size="10">bash</text>
+    <rect x="810" y="408" width="28" height="20" rx="3" fill="#1f2937"/>
+    <text x="814" y="423" fill="#6b7280" font-family="system-ui, sans-serif" font-size="9">复制</text>
+    <text x="312" y="450" fill="#5eead4" font-family="'JetBrains Mono', monospace" font-size="13">npm create mdparse@latest</text>
+    <text x="312" y="470" fill="#e5e7eb" font-family="'JetBrains Mono', monospace" font-size="13">cd my-project &amp;&amp; npm run dev</text>
+
+    <!-- Cursor blink -->
+    <line x1="312" y1="485" x2="312" y2="495" stroke="#e5e7eb" stroke-width="2" opacity="0.7">
+      <animate attributeName="opacity" values="0.7;0;0.7" dur="1s" repeatCount="indefinite"/>
+    </line>
+  </g>
+
+  <!-- Status bar -->
+  <rect x="280" y="540" width="860" height="30" fill="#14161b"/>
+  <text x="300" y="559" fill="#6b7280" font-family="system-ui, sans-serif" font-size="11">Markdown  •  42 lines  •  892 words  •  UTF-8</text>
+  <text x="1050" y="559" fill="#6b7280" font-family="system-ui, sans-serif" font-size="11">Ln 1, Col 1</text>
+
+  <!-- Bottom bar -->
+  <rect x="0" y="600" width="1200" height="30" fill="#0c0e12"/>
+  <text x="60" y="619" fill="#6b7280" font-family="system-ui, sans-serif" font-size="12">v0.4.0  •  Electron + React + TypeScript</text>
+  <text x="980" y="619" fill="#6b7280" font-family="system-ui, sans-serif" font-size="12">MIT License</text>
+
+  <!-- Accent underline -->
+  <rect x="60" y="610" width="120" height="3" rx="1.5" fill="url(#accent)"/>
+</svg>

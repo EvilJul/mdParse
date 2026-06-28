@@ -36,11 +36,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on('menu-open-folder', handler);
     return () => ipcRenderer.removeListener('menu-open-folder', handler);
   },
-  onMenuOpenAISettings: (callback) => {
-    const handler = () => callback();
-    ipcRenderer.on('menu-open-ai-settings', handler);
-    return () => ipcRenderer.removeListener('menu-open-ai-settings', handler);
-  },
   onMenuOpenSettings: (callback) => {
     const handler = () => callback();
     ipcRenderer.on('menu-open-settings', handler);
@@ -56,7 +51,4 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on('menu-open-shortcuts', handler);
     return () => ipcRenderer.removeListener('menu-open-shortcuts', handler);
   },
-  printToPDF: (data) => ipcRenderer.invoke('print-to-pdf', data),
-  saveImage: (data) => ipcRenderer.invoke('save-image', data),
-  uploadImage: (data) => ipcRenderer.invoke('upload-image', data)
 });

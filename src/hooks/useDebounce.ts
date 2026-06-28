@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import type React from 'react';
 
 /**
  * 防抖 Hook - 延迟执行回调函数
@@ -6,7 +7,7 @@ import { useEffect, useRef } from 'react';
  * @param delay 延迟时间（毫秒）
  * @param dependencies 依赖数组
  */
-export function useDebounce(callback: () => void, delay: number, dependencies: any[]) {
+export function useDebounce(callback: () => void, delay: number, dependencies: React.DependencyList) {
   const timeoutRef = useRef<number | null>(null);
 
   useEffect(() => {
@@ -26,6 +27,7 @@ export function useDebounce(callback: () => void, delay: number, dependencies: a
         clearTimeout(timeoutRef.current);
       }
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, dependencies);
 }
 

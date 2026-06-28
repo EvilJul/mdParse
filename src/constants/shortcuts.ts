@@ -22,4 +22,3 @@ export const SHORTCUTS = [
   { keys: 'Esc', action: '关闭弹窗' },
 ];
 
-export const isMacPlatform = isMac;
