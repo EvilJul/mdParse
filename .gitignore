@@ -51,5 +51,9 @@ openspec/
 # Screenshots / render tests
 *.png
 
+# Allow app icon files
+!build/icon.png
+!build/AppIcon.iconset/*.png
+
 # macOS
 ._*

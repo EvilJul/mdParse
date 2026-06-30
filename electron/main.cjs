@@ -432,15 +432,31 @@ if (app.isPackaged) {
   });
 }
 
+// macOS: handle file opened via Finder double-click / "Open With"
+app.on('open-file', (event, filePath) => {
+  event.preventDefault();
+  if (filePath.endsWith('.md')) {
+    if (mainWindow && !mainWindow.webContents.isLoading()) {
+      handleFileOpen(filePath);
+    } else {
+      // Queue until ready — the startup argv check also covers this case
+      const check = setInterval(() => {
+        if (mainWindow && !mainWindow.webContents.isLoading()) {
+          handleFileOpen(filePath);
+          clearInterval(check);
+        }
+      }, 200);
+    }
+  }
+});
+
 app.whenReady().then(() => {
   createWindow();
 
-  // Check command line arguments on startup (Windows file association)
-  if (process.platform === 'win32') {
-    const filePath = process.argv.find(arg => arg.endsWith('.md'));
-    if (filePath) {
-      setTimeout(() => handleFileOpen(filePath), 500);
-    }
+  // Check command line arguments on startup (file association)
+  const filePath = process.argv.find(arg => arg.endsWith('.md'));
+  if (filePath) {
+    setTimeout(() => handleFileOpen(filePath), 500);
   }
 
   app.on('activate', () => {

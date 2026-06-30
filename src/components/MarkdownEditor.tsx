@@ -114,7 +114,7 @@ export function MarkdownEditor({
 
       <div className={`flex-1 flex min-h-0 ${isDark ? 'bg-surface-dark' : 'bg-surface'}`}>
         <div className="flex-1 flex flex-col min-w-0 overflow-auto">
-          <div className="max-w-3xl mx-auto w-full flex-1 flex flex-col">
+          <div className="w-full flex-1 flex flex-col px-3">
             <WYSIWYGEditor
               ref={editorRef}
               value={content}

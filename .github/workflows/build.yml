@@ -2,6 +2,7 @@ name: Build and Release
 
 on:
   push:
+    branches: [main]
     tags:
       - 'v*'
 
@@ -35,8 +36,8 @@ jobs:
           name: windows-build
           path: release/*.exe
 
-  build-macos:
-    runs-on: macos-latest
+  build-macos-x64:
+    runs-on: macos-13
     steps:
       - uses: actions/checkout@v4
 
@@ -52,14 +53,14 @@ jobs:
       - name: Build
         run: npm run build
 
-      - name: Build Electron (macOS)
-        run: npx electron-builder --mac --publish never
+      - name: Build Electron (macOS x64)
+        run: npx electron-builder --mac --x64 --publish never
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: macos-build
-          path: release/*.dmg
+          name: macos-x64-build
+          path: release/*.zip
 
   build-linux:
     runs-on: ubuntu-latest
@@ -90,7 +91,8 @@ jobs:
             release/*.deb
 
   release:
-    needs: [build-windows, build-macos, build-linux]
+    needs: [build-windows, build-macos-x64, build-linux]
+    if: startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -114,8 +116,7 @@ jobs:
             | Platform | File |
             |----------|------|
             | Windows | `.exe` installer |
-            | macOS (Intel) | `x64.dmg` |
-            | macOS (Apple Silicon) | `arm64.dmg` |
+            | macOS (Intel) | `.zip` |
             | Linux | `.AppImage` / `.deb` |
 
             ### macOS Users
@@ -126,6 +127,6 @@ jobs:
             3. Or go to **System Settings → Privacy & Security → Open Anyway**
           files: |
             artifacts/**/*.exe
-            artifacts/**/*.dmg
+            artifacts/**/*.zip
             artifacts/**/*.AppImage
             artifacts/**/*.deb
