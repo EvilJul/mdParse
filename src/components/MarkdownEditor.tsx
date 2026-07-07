@@ -2,6 +2,7 @@ import { useState, useRef, useCallback } from 'react';
 import { WYSIWYGEditor } from './WYSIWYGEditor';
 import type { WYSIWYGEditorHandle } from './WYSIWYGEditor';
 import { MarkdownToolbar } from './MarkdownToolbar';
+import { OutlinePanel } from './OutlinePanel';
 
 interface MarkdownEditorProps {
   content: string;
@@ -28,6 +29,7 @@ export function MarkdownEditor({
   const [editName, setEditName] = useState(fileName);
   const editorRef = useRef<WYSIWYGEditorHandle>(null);
 
+  const [showOutline, setShowOutline] = useState(false);
   const isDark = theme === 'dark';
   const modKey = isMac ? 'Cmd' : 'Ctrl';
 
@@ -85,6 +87,20 @@ export function MarkdownEditor({
 
         <div className="flex items-center gap-1.5 flex-shrink-0">
           <button
+            onClick={() => setShowOutline(v => !v)}
+            className={`p-1 rounded-sm transition-colors ${
+              showOutline
+                ? isDark ? 'text-emerald-400 bg-gray-700' : 'text-emerald-600 bg-gray-100'
+                : isDark ? 'text-gray-500 hover:text-gray-300 hover:bg-sidebar-item-dark' : 'text-text-muted hover:text-text-secondary hover:bg-sidebar'
+            }`}
+            title="大纲"
+          >
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 10h16M4 14h16M4 18h16" />
+            </svg>
+          </button>
+
+          <button
             onClick={onSave}
             className="flex items-center gap-1 px-2 py-1 bg-emerald-500 hover:bg-emerald-600 active:bg-emerald-700 text-white text-[11px] rounded-sm transition-colors"
             title={`保存 (${modKey}+S)`}
@@ -123,6 +139,15 @@ export function MarkdownEditor({
             />
           </div>
         </div>
+        {showOutline && (
+          <OutlinePanel
+            content={content}
+            theme={theme}
+            onScrollToHeading={(index) => {
+              editorRef.current?.scrollToHeading(index);
+            }}
+          />
+        )}
       </div>
     </div>
   );
